@@ -354,7 +354,8 @@
   .routine-banner .rc{ font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--text-dim); }
 
   .builder-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
-  .builder-item{ display:flex; justify-content:space-between; align-items:center; background: var(--surface-alt2); border:none;  border-radius:10px; padding:9px 12px; }
+  .builder-item{ display:flex; justify-content:space-between; align-items:center; background: var(--surface-alt2); border:none;  border-radius:10px; padding:9px 12px; cursor:pointer; }
+  .builder-item:active{ background: var(--surface-alt); }
   .builder-item .bn{ font-size:13px; font-weight:600; }
   .builder-item .bs{ font-family:'JetBrains Mono', monospace; font-size:11px; color: var(--text-dim); }
   .builder-item button{ background:none; border:none; color: var(--danger); font-size:15px; }
@@ -1569,9 +1570,45 @@ let progressPhotos = [];
 let dismissedPhotoReminders = [];
 let resumenPeriod = 'semana';
 let builder = { routine: null, exercises: [] };
-let nutritionGoals = { calories: 2000, protein: 150, carbs: 200, fat: 65 };
-let dietBase = []; // [{id, name, items:[{name, qty}]}]
-let customFoods = []; // [{name, unit, per, kcal, protein, carbs, fat}]
+let nutritionGoals = { calories: 2235, protein: 170, carbs: 215, fat: 57 };
+// Alimentos que no están en la base genérica, necesarios para el plan por defecto.
+let customFoods = [
+  { name:'Leche de soya sin azúcar', unit:'ml', per:100, kcal:33, protein:3, carbs:1.7, fat:1.9 },
+  { name:'Creatina (5g)', unit:'g', per:5, kcal:0, protein:0, carbs:0, fat:0 },
+  { name:'Magnesio (glicinato/citrato)', unit:'mg', per:250, kcal:0, protein:0, carbs:0, fat:0 },
+];
+// Dieta base por defecto — punto de partida editable/borrable desde "Editar
+// dieta y metas". Cada persona que instale la app de cero la ve así hasta
+// que la modifique en su propio celular (no se comparte entre dispositivos).
+let dietBase = [
+  { id:'meal_desayuno', name:'Desayuno', items:[
+    { name:'Leche de soya sin azúcar', qty:240 },
+    { name:'Plátano', qty:1 },
+    { name:'Huevo', qty:5 },
+    { name:'Clara de huevo', qty:3 },
+    { name:'Tortilla de maíz', qty:1 },
+  ]},
+  { id:'meal_comida', name:'Comida', items:[
+    { name:'Pechuga de pollo', qty:200 },
+    { name:'Arroz blanco cocido', qty:100 },
+  ]},
+  { id:'meal_mediatarde', name:'Media tarde', items:[
+    { name:'Yogur griego natural', qty:120 },
+    { name:'Plátano', qty:1 },
+  ]},
+  { id:'meal_postentreno', name:'Post-entreno', items:[
+    { name:'Leche de soya sin azúcar', qty:240 },
+    { name:'Clara de huevo', qty:3 },
+    { name:'Creatina (5g)', qty:5 },
+  ]},
+  { id:'meal_cena', name:'Cena', items:[
+    { name:'Pechuga de pollo', qty:170 },
+    { name:'Tortilla de maíz', qty:2 },
+  ]},
+  { id:'meal_antesdormir', name:'Antes de dormir', items:[
+    { name:'Magnesio (glicinato/citrato)', qty:250 },
+  ]},
+]; // [{id, name, items:[{name, qty}]}]
 let nutritionLogs = {}; // { [date]: { checked:{mealId:true}, extras:{mealId:[{id,name,qty}]}, other:[{id,name,qty}] } }
 
 function todayISO(){ return new Date().toISOString().slice(0,10); }
@@ -1847,10 +1884,10 @@ function renderRoutineChips(){
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
       Rutina personalizada
     </button>`;
-  el.querySelectorAll('.routine-card[data-r]').forEach(btn => btn.addEventListener('click', () => { builder.routine = btn.dataset.r; renderRoutineChips(); renderBuilder(); }));
+  el.querySelectorAll('.routine-card[data-r]').forEach(btn => btn.addEventListener('click', () => selectRoutine(btn.dataset.r)));
   document.getElementById('routineCustom').addEventListener('click', () => {
     const name = prompt('Nombre de la rutina:');
-    if(name && name.trim()){ builder.routine = name.trim(); renderRoutineChips(); renderBuilder(); }
+    if(name && name.trim()) selectRoutine(name.trim());
   });
   updateTrainStepVisibility();
 }
@@ -1870,11 +1907,16 @@ function renderBuilder(){
 
   const list = document.getElementById('builderList');
   list.innerHTML = builder.exercises.map((e,i) => `
-    <div class="builder-item">
+    <div class="builder-item" data-edit-i="${i}" title="Toca para editar pesos/reps">
       <div><div class="bn">${e.name}</div><div class="bs">${e.sets.length} serie${e.sets.length===1?'':'s'} · ${e.sets.map(s=>`${weightLabel(s.weight)}×${s.reps}`).join(', ')}</div></div>
       <button type="button" data-i="${i}">×</button>
     </div>`).join('');
-  list.querySelectorAll('button[data-i]').forEach(btn => btn.addEventListener('click', () => {
+  list.querySelectorAll('.builder-item[data-edit-i]').forEach(row => row.addEventListener('click', (e) => {
+    if(e.target.closest('button[data-i]')) return;
+    editBuilderExercise(parseInt(row.dataset.editI));
+  }));
+  list.querySelectorAll('button[data-i]').forEach(btn => btn.addEventListener('click', (e) => {
+    e.stopPropagation();
     builder.exercises.splice(parseInt(btn.dataset.i), 1);
     renderBuilder();
   }));
@@ -1985,14 +2027,32 @@ function bindExRowEvents(container){
     renderPicker();
   }));
 }
+let editingExerciseIndex = null;
 function selectExercise(name){
+  editingExerciseIndex = null;
   selectedExercise = name;
   document.getElementById('selectedName').textContent = name;
   document.getElementById('detailPanel').classList.remove('hidden');
   renderPicker();
   document.getElementById('detailPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
-function clearSelection(){ selectedExercise = null; document.getElementById('detailPanel').classList.add('hidden'); renderPicker(); }
+function clearSelection(){ selectedExercise = null; editingExerciseIndex = null; document.getElementById('detailPanel').classList.add('hidden'); renderPicker(); }
+// Reabre un ejercicio que ya estaba agregado a la rutina (ej. precargado de
+// tu sesión anterior) para editar sus pesos/reps sin tener que borrarlo y
+// volver a capturarlo desde cero.
+function editBuilderExercise(index){
+  const item = builder.exercises[index];
+  if(!item) return;
+  editingExerciseIndex = index;
+  selectedExercise = item.name;
+  document.getElementById('selectedName').textContent = item.name;
+  document.getElementById('notesInput').value = item.notes || '';
+  document.getElementById('setsContainer').innerHTML = '';
+  (item.sets.length ? item.sets : [{weight:20, reps:10}]).forEach(s => addSetRow(s.weight, s.reps));
+  document.getElementById('detailPanel').classList.remove('hidden');
+  renderPicker();
+  document.getElementById('detailPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
 function renderPicker(){ renderChips(); renderRecent(); renderAllExercises(); }
 
 /* ---------------- MODAL: crear ejercicio personalizado ---------------- */
@@ -2093,7 +2153,13 @@ function addExerciseToRoutine(){
     }).filter(s => s.weight > 0 || s.reps > 0);
     if(!exercise || sets.length === 0){ alert('Elige un ejercicio y agrega al menos una serie con peso o reps.'); return; }
     const dbEntry = allExercises().find(e => e.name === exercise);
-    builder.exercises.push({name: exercise, group: dbEntry ? dbEntry.group : '', sets, notes});
+    const entry = {name: exercise, group: dbEntry ? dbEntry.group : '', sets, notes};
+    if(editingExerciseIndex !== null && builder.exercises[editingExerciseIndex]){
+      builder.exercises[editingExerciseIndex] = entry;
+    } else {
+      builder.exercises.push(entry);
+    }
+    editingExerciseIndex = null;
     document.getElementById('notesInput').value = '';
     document.getElementById('setsContainer').innerHTML = '';
     addSetRow();
@@ -2343,7 +2409,7 @@ function renderInicio(){
 
   document.getElementById('goEntrenar').addEventListener('click', () => {
     const r = document.getElementById('goEntrenar').dataset.routine;
-    if(r){ builder.routine = r; renderRoutineChips(); renderBuilder(); }
+    if(r) selectRoutine(r);
     showView('entrenamientos');
   });
   document.getElementById('goResumen').addEventListener('click', () => showView('resumen'));
@@ -3191,6 +3257,23 @@ function addFoodToContext(name, qty){
     log.other.push({ id, name, qty });
   }
   scheduleSave();
+}
+
+// Al elegir una rutina para empezar a entrenar, si ya la hiciste antes,
+// precarga los mismos ejercicios/series de tu última vez con esa rutina —
+// así solo editas pesos/reps en vez de volver a armar todo desde cero.
+// Solo precarga si no hay ya un entrenamiento en curso (para no pisar avance real).
+function selectRoutine(name){
+  builder.routine = name;
+  if(builder.exercises.length === 0){
+    const last = sessions.filter(s => s.routine === name).sort((a,b) => b.date.localeCompare(a.date))[0];
+    if(last && last.exercises && last.exercises.length){
+      builder.exercises = JSON.parse(JSON.stringify(last.exercises));
+      showToast('Rutina cargada', 'Usamos tu ' + name + ' pasado — edita los pesos y reps.', false);
+    }
+  }
+  renderRoutineChips();
+  renderBuilder();
 }
 
 function computePRMap(){
