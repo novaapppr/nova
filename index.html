@@ -3199,10 +3199,17 @@ function closeFoodPicker(){
   document.getElementById('foodPickerModal').classList.add('hidden');
   foodPickerContext = null;
 }
+// Quita acentos y normaliza variantes comunes de ortografía (yogurt/yogur,
+// etc.) para que buscar "platano" sí encuentre "Plátano", "yogurt" sí
+// encuentre "Yogur", etc. — sin esto la búsqueda es demasiado estricta.
+function normalizeFoodQuery(s){
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/yogurt/g, 'yogur');
+}
 function renderFoodResults(query){
   const el = document.getElementById('foodSearchResults');
-  const q = query.trim().toLowerCase();
-  const matches = q ? allFoods().filter(f => f.name.toLowerCase().includes(q)) : allFoods().slice(0, 12);
+  const q = normalizeFoodQuery(query.trim());
+  const matches = q ? allFoods().filter(f => normalizeFoodQuery(f.name).includes(q)) : allFoods().slice(0, 12);
   if(matches.length === 0){
     el.innerHTML = `<div class="empty-note">No encontramos "${query}". Créalo abajo.</div>`;
     return;
