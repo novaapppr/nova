@@ -459,6 +459,38 @@
   @media (max-width: 500px){ .progress-grid{ grid-template-columns: 1fr; } }
   .section-caption{ font-size:11px; color:var(--text-faint); margin: -4px 0 12px; }
 
+  .excmp-grid{ display:grid; grid-template-columns: 1fr; gap:12px; }
+  @media (min-width: 560px){ .excmp-grid{ grid-template-columns: 1fr 1fr; } }
+  .excmp-card{ background: var(--surface-alt2); border-radius:14px; padding:16px; }
+  .excmp-card .ec-head{ display:flex; align-items:center; gap:9px; margin-bottom:12px; }
+  .excmp-card .ec-icon{ width:28px; height:28px; border-radius:50%; background: rgba(125,92,255,0.12); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .excmp-card .ec-icon svg{ width:16px; height:20px; }
+  .excmp-card .ec-name{ font-weight:700; font-size:14px; }
+  .excmp-card .ec-rows{ display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+  .excmp-card .ec-row{ display:flex; justify-content:space-between; align-items:baseline; font-size:12.5px; }
+  .excmp-card .ec-label{ color:var(--text-dim); }
+  .excmp-card .ec-val{ font-family:'JetBrains Mono', monospace; color:var(--text-dim); }
+  .excmp-card .ec-val-cur{ color:#fff; font-weight:700; font-size:15px; }
+  .excmp-card .ec-new{ font-size:13px; color:var(--text-dim); margin-bottom:4px; }
+  .excmp-card .ec-new b{ color:#fff; font-family:'JetBrains Mono', monospace; }
+  .excmp-card .ec-bar-row{ display:flex; align-items:center; gap:10px; }
+  .excmp-card .ec-bar{ flex:1; height:8px; border-radius:5px; background:var(--surface-alt); overflow:hidden; }
+  .excmp-card .ec-bar .fill{ height:100%; border-radius:5px; }
+  .excmp-card .ec-bar .fill.up{ background:#5fe38c; }
+  .excmp-card .ec-bar .fill.down{ background:var(--danger); }
+  .excmp-card .ec-bar .fill.flat{ background:var(--text-faint); width:2px !important; }
+  .excmp-card .ec-pct{ font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:700; flex-shrink:0; }
+  .excmp-card .ec-pct.up{ color:#5fe38c; }
+  .excmp-card .ec-pct.down{ color:var(--danger); }
+  .excmp-card .ec-pct.flat{ color:var(--text-dim); }
+
+  .meal-reminder{ display:flex; align-items:center; gap:10px; background: linear-gradient(160deg, rgba(239,91,82,0.14), transparent 65%), var(--surface-alt2); border:1px solid rgba(239,91,82,0.3); border-radius:14px; padding:12px 14px; margin-bottom:14px; }
+  .meal-reminder .mr-ic{ width:30px; height:30px; border-radius:50%; background:rgba(239,91,82,0.16); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--danger); }
+  .meal-reminder .mr-ic svg{ width:16px; height:16px; }
+  .meal-reminder .mr-text{ flex:1; font-size:12.5px; line-height:1.4; }
+  .meal-reminder .mr-text b{ color:#fff; }
+  .notif-permission-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--surface-alt2); border-radius:12px; padding:10px 12px; margin-bottom:14px; font-size:12px; color:var(--text-dim); }
+
   /* ---------------- NUTRICIÓN ---------------- */
   .macro-grid{ display:grid; grid-template-columns: 1fr; gap:14px; }
   .macro-item{ display:flex; flex-direction:column; gap:6px; }
@@ -495,7 +527,8 @@
 
   .diet-meal-editor-row{ background:var(--surface-alt2); border-radius:12px; padding:12px; margin-bottom:8px; }
   .diet-meal-editor-row .dme-head{ display:flex; align-items:center; gap:8px; }
-  .diet-meal-editor-row .dme-head input{ flex:1; background:none; border:none; color:#fff; font-weight:700; font-size:13.5px; padding:4px 0; }
+  .diet-meal-editor-row .dme-head input[type=text]{ flex:1; background:none; border:none; color:#fff; font-weight:700; font-size:13.5px; padding:4px 0; }
+  .diet-meal-editor-row .dme-head input[type=time]{ flex-shrink:0; width:92px; background:var(--surface-alt); border:1px solid var(--border); border-radius:7px; color:var(--text-dim); font-size:11.5px; padding:4px 6px; }
   .diet-meal-editor-row .dme-del{ background:none; border:none; color:var(--text-faint); width:24px; height:24px; }
   .diet-meal-editor-row .dme-del svg{ width:13px; height:13px; }
   .diet-meal-editor-row .dme-items{ margin-top:6px; display:flex; flex-direction:column; gap:4px; }
@@ -626,6 +659,7 @@
       <div class="date-pill mono">07 SEP 2026</div>
     </div>
   </div>
+      <div id="mealReminderBannerInicio"></div>
       <div id="inicioBriefing"></div>
       <div id="inicioCard">
     <div class="dash-stat-grid">
@@ -1262,49 +1296,8 @@
           <button type="button" data-period="semana" class="active">Semana</button>
           <button type="button" data-period="mes">Mes</button>
         </div>
-        <div id="resumenBriefing">
-    <div class="briefing ">
-      <div class="briefing-head">NOVA · BRIEFING</div>
-      
-      <div class="briefing-lines">
-        <div class="briefing-line"><span class="b-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 21V4h13l-3 4 3 4H5"></path></svg></span><span>Aún no arrancas racha. Entrena hoy para empezar una nueva.</span></div>
-      </div>
-    </div>
-  </div>
-        <div class="badge-row" id="badgeRow">
-    <div class="stat-grid">
-      <div class="stat-tile">
-        <div class="st-num">0</div>
-        <div class="st-lbl">Días</div>
-        <div class="trend flat">—</div>
-      </div>
-      <div class="stat-tile">
-        <div class="st-num">0</div>
-        <div class="st-lbl">Racha</div>
-      </div>
-      <div class="stat-tile">
-        <div class="st-num">0</div>
-        <div class="st-lbl">PRs</div>
-      </div>
-    </div>
-  </div>
-        <div id="volumeCompare">
-    <div class="vol-card">
-      <div class="vol-lbl">Volumen total <span class="mono">vs. semana anterior</span></div>
-      <div class="vol-row">
-        <div class="vol-num">0<span class="unit">kg</span></div>
-        <div class="trend flat">—</div>
-      </div>
-    </div>
-  </div>
-        <div id="chartArea"><div class="chart-title">Esta semana vs. semana pasada</div><div class="empty-note">Sin datos suficientes todavía para comparar.</div></div>
-        <div class="donut-row" id="donutRow"><div class="empty-note">Aún no hay sesiones en este periodo para mostrar la distribución.</div></div>
-        <div class="list-label"><span class="lbl">Ejercicios más trabajados</span></div>
-        <div id="topExList"><div class="empty-note">Sin entrenamientos en este periodo.</div></div>
-      </div>
-      <div class="card">
-        <div class="list-label"><span class="lbl">Grupo muscular más trabajado</span></div>
-        <div id="topGroupCard"><div class="empty-note">Sin datos de grupos musculares aún.</div></div>
+        <div class="section-caption" id="exCmpCaption">Comparando esta semana vs. la semana pasada — por ejercicio.</div>
+        <div id="exerciseComparisonGrid"></div>
       </div>
     </section>
 
@@ -1365,6 +1358,7 @@
         <button type="button" class="add-exercise-btn" id="openDietSettingsBtn">Editar dieta y metas</button>
       </div>
 
+      <div id="mealReminderBannerNutricion"></div>
       <div class="card">
         <div class="macro-grid" id="macroSummary"></div>
       </div>
@@ -1397,7 +1391,10 @@
 
           <label class="modal-label">Tu dieta base (comidas de todos los días)</label>
           <div id="dietBaseEditorList"></div>
-          <button type="button" class="add-exercise-btn" id="addMealBtn" style="margin-top:8px;">+ Nueva comida</button>
+          <div class="action-row" style="display:flex; gap:8px; margin-top:8px;">
+            <button type="button" class="add-exercise-btn" id="addMealBtn">+ Nueva comida</button>
+            <button type="button" class="add-exercise-btn" id="loadSamplePlanBtn">Cargar plan de ejemplo</button>
+          </div>
         </div>
       </div>
 
@@ -1469,10 +1466,10 @@ const ROUTINES = ["Push","Pull","Legs","Upper","Lower","Full Body"];
    alimentos genéricos. Para marcas/antojitos específicos, el usuario da de
    alta el dato exacto de la etiqueta y NOVA lo recuerda para siempre. */
 const FOOD_DB = [
-  { name:'Pechuga de pollo', unit:'g', per:100, kcal:165, protein:31, carbs:0, fat:3.6 },
+  { name:'Pechuga de pollo', unit:'g', per:100, kcal:120, protein:22.5, carbs:0, fat:2.6 },
   { name:'Muslo de pollo', unit:'g', per:100, kcal:209, protein:26, carbs:0, fat:10.9 },
   { name:'Carne de res (molida 90/10)', unit:'g', per:100, kcal:176, protein:20, carbs:0, fat:10 },
-  { name:'Carne de res (bistec)', unit:'g', per:100, kcal:250, protein:26, carbs:0, fat:15 },
+  { name:'Carne de res (bistec)', unit:'g', per:100, kcal:135, protein:20, carbs:0, fat:6 },
   { name:'Cerdo (lomo)', unit:'g', per:100, kcal:143, protein:26, carbs:0, fat:3.5 },
   { name:'Atún en agua', unit:'g', per:100, kcal:116, protein:26, carbs:0, fat:1 },
   { name:'Salmón', unit:'g', per:100, kcal:208, protein:20, carbs:0, fat:13 },
@@ -1519,6 +1516,9 @@ const FOOD_DB = [
   { name:'Chocolate con leche', unit:'g', per:100, kcal:535, protein:7.6, carbs:59, fat:30 },
   { name:'Refresco', unit:'ml', per:355, kcal:140, protein:0, carbs:39, fat:0 },
   { name:'Cerveza', unit:'ml', per:355, kcal:153, protein:1.6, carbs:13, fat:0 },
+  { name:'Leche de soya sin azúcar', unit:'ml', per:100, kcal:33, protein:3, carbs:1.7, fat:1.9 },
+  { name:'Creatina (5g)', unit:'g', per:5, kcal:0, protein:0, carbs:0, fat:0 },
+  { name:'Magnesio (glicinato/citrato)', unit:'mg', per:250, kcal:0, protein:0, carbs:0, fat:0 },
 ];
 const ROUTINE_COLORS = {"Push":"#7D5CFF","Pull":"#4C8DFF","Legs":"#B48CFF","Upper":"#8A6FFF","Lower":"#3D6FE0","Full Body":"#A5A8B3","Entrenamiento":"#666A76"};
 function allExercises(){ return [...EXERCISES_DB, ...customExercises]; }
@@ -1570,46 +1570,55 @@ let progressPhotos = [];
 let dismissedPhotoReminders = [];
 let resumenPeriod = 'semana';
 let builder = { routine: null, exercises: [] };
-let nutritionGoals = { calories: 2235, protein: 170, carbs: 215, fat: 57 };
-// Alimentos que no están en la base genérica, necesarios para el plan por defecto.
-let customFoods = [
-  { name:'Leche de soya sin azúcar', unit:'ml', per:100, kcal:33, protein:3, carbs:1.7, fat:1.9 },
-  { name:'Creatina (5g)', unit:'g', per:5, kcal:0, protein:0, carbs:0, fat:0 },
-  { name:'Magnesio (glicinato/citrato)', unit:'mg', per:250, kcal:0, protein:0, carbs:0, fat:0 },
-];
-// Dieta base por defecto — punto de partida editable/borrable desde "Editar
-// dieta y metas". Cada persona que instale la app de cero la ve así hasta
-// que la modifique en su propio celular (no se comparte entre dispositivos).
-let dietBase = [
-  { id:'meal_desayuno', name:'Desayuno', items:[
-    { name:'Leche de soya sin azúcar', qty:240 },
-    { name:'Plátano', qty:1 },
-    { name:'Huevo', qty:5 },
-    { name:'Clara de huevo', qty:3 },
-    { name:'Tortilla de maíz', qty:1 },
-  ]},
-  { id:'meal_comida', name:'Comida', items:[
-    { name:'Pechuga de pollo', qty:200 },
-    { name:'Arroz blanco cocido', qty:100 },
-  ]},
-  { id:'meal_mediatarde', name:'Media tarde', items:[
-    { name:'Yogur griego natural', qty:120 },
-    { name:'Plátano', qty:1 },
-  ]},
-  { id:'meal_postentreno', name:'Post-entreno', items:[
-    { name:'Leche de soya sin azúcar', qty:240 },
-    { name:'Clara de huevo', qty:3 },
-    { name:'Creatina (5g)', qty:5 },
-  ]},
-  { id:'meal_cena', name:'Cena', items:[
-    { name:'Pechuga de pollo', qty:170 },
-    { name:'Tortilla de maíz', qty:2 },
-  ]},
-  { id:'meal_antesdormir', name:'Antes de dormir', items:[
-    { name:'Magnesio (glicinato/citrato)', qty:250 },
-  ]},
-]; // [{id, name, items:[{name, qty}]}]
+let nutritionGoals = { calories: 2000, protein: 150, carbs: 200, fat: 65 };
+let customFoods = []; // [{name, unit, per, kcal, protein, carbs, fat}] — alimentos que cada quien da de alta
+let dietBase = []; // [{id, name, items:[{name, qty}]}] — cada quien arma la suya desde "Editar dieta y metas"
 let nutritionLogs = {}; // { [date]: { checked:{mealId:true}, extras:{mealId:[{id,name,qty}]}, other:[{id,name,qty}] } }
+
+// Plan de ejemplo (Fase de déficit, Opción B) — NO se aplica solo. Se carga
+// únicamente si tocas "Cargar plan de ejemplo" en Editar dieta y metas, y
+// reemplaza lo que tengas guardado en ese momento en ESTE dispositivo.
+const SAMPLE_DIET_PLAN = {
+  goals: { calories: 2235, protein: 170, carbs: 215, fat: 57 },
+  meals: [
+    { name:'Desayuno', time:'07:30', items:[
+      { name:'Leche de soya sin azúcar', qty:240 },
+      { name:'Plátano', qty:1 },
+      { name:'Huevo', qty:5 },
+      { name:'Clara de huevo', qty:3 },
+      { name:'Tortilla de maíz', qty:1 },
+    ]},
+    { name:'Comida', time:'14:30', items:[
+      { name:'Pechuga de pollo', qty:200 },
+      { name:'Arroz blanco cocido', qty:100 },
+    ]},
+    { name:'Media tarde', time:'17:15', items:[
+      { name:'Yogur griego natural', qty:120 },
+      { name:'Plátano', qty:1 },
+    ]},
+    { name:'Post-entreno', items:[
+      { name:'Leche de soya sin azúcar', qty:240 },
+      { name:'Clara de huevo', qty:3 },
+      { name:'Creatina (5g)', qty:5 },
+    ]},
+    { name:'Cena', time:'20:30', items:[
+      { name:'Pechuga de pollo', qty:170 },
+      { name:'Tortilla de maíz', qty:2 },
+    ]},
+    { name:'Antes de dormir', items:[
+      { name:'Magnesio (glicinato/citrato)', qty:250 },
+    ]},
+  ]
+};
+function loadSampleDietPlan(){
+  if(!confirm('Esto va a reemplazar tu dieta base y metas actuales en este celular por el plan de ejemplo. ¿Seguro?')) return;
+  nutritionGoals = { ...SAMPLE_DIET_PLAN.goals };
+  dietBase = SAMPLE_DIET_PLAN.meals.map((m,i) => ({ id:'meal_sample_'+i+'_'+Date.now(), name:m.name, time: m.time || null, items: m.items.map(it=>({...it})) }));
+  scheduleSave();
+  openDietSettings();
+  renderNutricion();
+  showToast('Plan cargado', 'Tu dieta base y metas se actualizaron en este celular.', false);
+}
 
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function weekBounds(d = new Date()){
@@ -2402,7 +2411,54 @@ function renderInicio(){
       </button>
     </div>
     <div class="pr-grid">${prCardsHtml}</div>
+
+    <div class="dash-section-head" style="margin-top:22px;">
+      <div class="pr-section-title">Esta semana vs. semana pasada</div>
+    </div>
+    <div id="inicioVolCard"></div>
+    <div id="inicioChartArea"></div>
+    <div class="donut-row" id="inicioDonutRow"></div>
+    <div class="list-label"><span class="lbl">Ejercicios más trabajados</span></div>
+    <div id="inicioTopExList"></div>
+    <div class="list-label" style="margin-top:14px;"><span class="lbl">Grupo muscular más trabajado</span></div>
+    <div id="inicioTopGroupCard"></div>
   `;
+
+  const [wStart, wEnd] = periodRange('semana');
+  const [wPrevStart, wPrevEnd] = prevPeriodRange('semana');
+  const inRangeDate = (dateStr, s, e) => { const d = new Date(dateStr+'T12:00:00'); return d >= s && d <= e; };
+  const wCur = flatEntries().filter(w => inRangeDate(w.date, wStart, wEnd));
+  const wPrev = flatEntries().filter(w => inRangeDate(w.date, wPrevStart, wPrevEnd));
+  const wVol = volumeOf(wCur), wVolPrev = volumeOf(wPrev);
+  const wVolTrend = trendBadge(wVol, wVolPrev);
+  document.getElementById('inicioVolCard').innerHTML = `
+    <div class="vol-card">
+      <div class="vol-lbl">Volumen total <span class="mono">vs. semana anterior</span></div>
+      <div class="vol-row">
+        <div class="vol-num">${Math.round(wVol).toLocaleString('es-MX')}<span class="unit">${currentUnit}</span></div>
+        <div class="trend ${wVolTrend.dir}">${wVolTrend.text}</div>
+      </div>
+    </div>`;
+  renderMuscleChart(document.getElementById('inicioChartArea'), wCur, wPrev, { title:'Por grupo muscular' });
+
+  const wSessions = sessions.filter(s => inRangeDate(s.date, wStart, wEnd));
+  const wRoutineCounts = {};
+  wSessions.forEach(s => { wRoutineCounts[s.routine] = (wRoutineCounts[s.routine]||0)+1; });
+  renderRoutineList(document.getElementById('inicioDonutRow'), wRoutineCounts);
+
+  const wExCounts = {};
+  wCur.forEach(w => { wExCounts[w.exercise] = (wExCounts[w.exercise]||0)+1; });
+  const wTop = Object.entries(wExCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  document.getElementById('inicioTopExList').innerHTML = wTop.length === 0 ? `<div class="empty-note">Sin entrenamientos esta semana.</div>` : wTop.map(([name,c]) => `<div class="top-ex-row"><span>${name}</span><span class="cnt">${c} sesión${c===1?'':'es'}</span></div>`).join('');
+
+  const wGroupSets = {};
+  wCur.forEach(w => { wGroupSets[w.group] = (wGroupSets[w.group]||0) + w.sets.length; });
+  const wGroupEntries = Object.entries(wGroupSets).sort((a,b)=>b[1]-a[1]);
+  const wTotalSets = wGroupEntries.reduce((a,[,c])=>a+c,0);
+  document.getElementById('inicioTopGroupCard').innerHTML = wGroupEntries.length === 0 ? `<div class="empty-note">Sin datos de grupos musculares aún.</div>` : `<div class="rank-list">${wGroupEntries.slice(0,4).map(([g,c]) => {
+    const pct = Math.round(c/wTotalSets*100);
+    return `<div class="rank-row"><span class="rank-ic">${groupIcon(g)}</span><span class="rank-name">${g}</span><span class="rank-stat">${c} series · ${pct}%</span></div>`;
+  }).join('')}</div>`;
 
   const insights = computePeriodInsights('semana', { hideStreak: true, maxLines: 3 });
   renderBriefing('inicioBriefing', insights);
@@ -2703,96 +2759,84 @@ function renderRoutineList(el, routineCounts){
     return `<div class="rank-row"><span class="rank-dot" style="background:${color}; color:${color}"></span><span class="rank-name">${name}</span><span class="rank-stat">${c} · ${pct}%</span></div>`;
   }).join('')}</div>`;
 }
+// Mejor serie de una lista de entradas para un ejercicio específico: manda el
+// peso (más peso = mejor); si el peso empata, deciden las repeticiones.
+function bestSetInPeriod(entries, exerciseName){
+  let best = null;
+  entries.forEach(w => {
+    if(w.exercise !== exerciseName) return;
+    w.sets.forEach(s => {
+      if(!best || s.weight > best.weight || (s.weight === best.weight && s.reps > best.reps)){
+        best = { weight: s.weight, reps: s.reps };
+      }
+    });
+  });
+  return best;
+}
+// Compara la mejor serie actual contra la del periodo anterior con la misma
+// regla: peso primero, reps como desempate.
+function compareBestSets(cur, prev){
+  if(!prev) return { trend:'new', pct:null, basis:null };
+  if(cur.weight !== prev.weight){
+    const pct = prev.weight > 0 ? Math.round((cur.weight - prev.weight) / prev.weight * 100) : null;
+    return { trend: cur.weight > prev.weight ? 'up' : 'down', pct, basis:'peso' };
+  }
+  if(cur.reps !== prev.reps){
+    const pct = prev.reps > 0 ? Math.round((cur.reps - prev.reps) / prev.reps * 100) : null;
+    return { trend: cur.reps > prev.reps ? 'up' : 'down', pct, basis:'reps' };
+  }
+  return { trend:'flat', pct:0, basis:'igual' };
+}
 function renderResumen(){
   const [start, end] = periodRange(resumenPeriod);
   const [prevStart, prevEnd] = prevPeriodRange(resumenPeriod);
   const entries = flatEntries();
-  const inRange = entries.filter(w => { const d = new Date(w.date + 'T12:00:00'); return d >= start && d <= end; });
-  const inPrevRange = entries.filter(w => { const d = new Date(w.date + 'T12:00:00'); return d >= prevStart && d <= prevEnd; });
-  const sessInRange = sessions.filter(s => { const d = new Date(s.date + 'T12:00:00'); return d >= start && d <= end; });
-  const sessInPrevRange = sessions.filter(s => { const d = new Date(s.date + 'T12:00:00'); return d >= prevStart && d <= prevEnd; });
-  const days = new Set(sessInRange.map(s => s.date)).size;
-  const daysPrev = new Set(sessInPrevRange.map(s => s.date)).size;
-  const streak = currentStreak();
-  const longestStreak = longestStreakEver();
+  const inR = (dateStr, s, e) => { const d = new Date(dateStr + 'T12:00:00'); return d >= s && d <= e; };
+  const curEntries = entries.filter(w => inR(w.date, start, end));
+  const prevEntries = entries.filter(w => inR(w.date, prevStart, prevEnd));
 
-  const bestSoFar = {};
-  let prCount = 0;
-  [...entries].sort((a,b) => a.date.localeCompare(b.date)).forEach(w => {
-    const d = new Date(w.date + 'T12:00:00');
-    const inThisRange = d >= start && d <= end;
-    w.sets.forEach(s => {
-      const e1 = epley1RM(s.weight, s.reps);
-      const prevBest = bestSoFar[w.exercise] || 0;
-      if(e1 > prevBest && e1 > 0){ bestSoFar[w.exercise] = e1; if(inThisRange) prCount++; }
-    });
-  });
+  const curLabel = resumenPeriod === 'hoy' ? 'hoy' : (resumenPeriod === 'mes' ? 'este mes' : 'esta semana');
+  const prevLabel = resumenPeriod === 'hoy' ? 'ayer' : (resumenPeriod === 'mes' ? 'el mes pasado' : 'la semana pasada');
+  document.getElementById('exCmpCaption').textContent = `Comparando ${curLabel} vs. ${prevLabel} — por ejercicio: el peso manda, las repeticiones desempatan.`;
 
-  const volume = volumeOf(inRange);
-  const volumePrev = volumeOf(inPrevRange);
-  const volTrend = trendBadge(volume, volumePrev);
-  const daysTrend = trendBadge(days, daysPrev);
-
-  document.getElementById('badgeRow').innerHTML = `
-    <div class="stat-grid">
-      <div class="stat-tile">
-        <div class="st-num">${days}</div>
-        <div class="st-lbl">Días</div>
-        <div class="trend ${daysTrend.dir}">${daysTrend.text}</div>
-      </div>
-      <div class="stat-tile">
-        <div class="st-num">${streak}</div>
-        <div class="st-lbl">Racha</div>
-      </div>
-      <div class="stat-tile">
-        <div class="st-num">${prCount}</div>
-        <div class="st-lbl">PRs</div>
-      </div>
-    </div>
-  `;
-
-  const periodLabel = resumenPeriod === 'hoy' ? 'vs. ayer' : (resumenPeriod === 'mes' ? 'vs. mes anterior' : 'vs. semana anterior');
-  document.getElementById('volumeCompare').innerHTML = `
-    <div class="vol-card">
-      <div class="vol-lbl">Volumen total <span class="mono">${periodLabel}</span></div>
-      <div class="vol-row">
-        <div class="vol-num">${Math.round(volume).toLocaleString('es-MX')}<span class="unit">${currentUnit}</span></div>
-        <div class="trend ${volTrend.dir}">${volTrend.text}</div>
-      </div>
-    </div>
-  `;
-
-  const chartArea = document.getElementById('chartArea');
-  const cmpLabel = resumenPeriod === 'hoy' ? 'Hoy vs. ayer' : (resumenPeriod === 'mes' ? 'Este mes vs. mes pasado' : 'Esta semana vs. semana pasada');
-  renderMuscleChart(chartArea, inRange, inPrevRange, { title: cmpLabel });
-
-  const routineCounts = {};
-  sessInRange.forEach(s => { routineCounts[s.routine] = (routineCounts[s.routine]||0) + 1; });
-  renderRoutineList(document.getElementById('donutRow'), routineCounts);
-
-  const counts = {};
-  inRange.forEach(w => { counts[w.exercise] = (counts[w.exercise]||0) + 1; });
-  const top = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,5);
-  const topEl = document.getElementById('topExList');
-  topEl.innerHTML = top.length === 0 ? `<div class="empty-note">Sin entrenamientos en este periodo.</div>` : top.map(([name,c]) => `<div class="top-ex-row"><span>${name}</span><span class="cnt">${c} sesión${c===1?'':'es'}</span></div>`).join('');
-
-  /* Grupo muscular más trabajado (por número de series) */
-  const groupSets = {};
-  inRange.forEach(w => { groupSets[w.group] = (groupSets[w.group]||0) + w.sets.length; });
-  const groupEntries = Object.entries(groupSets).sort((a,b) => b[1]-a[1]);
-  const topGroupEl = document.getElementById('topGroupCard');
-  if(groupEntries.length === 0){
-    topGroupEl.innerHTML = `<div class="empty-note">Sin datos de grupos musculares aún.</div>`;
-  } else {
-    const totalSets = groupEntries.reduce((a,[,c])=>a+c,0);
-    topGroupEl.innerHTML = `<div class="rank-list">${groupEntries.slice(0,4).map(([g,c]) => {
-      const pct = Math.round(c/totalSets*100);
-      return `<div class="rank-row"><span class="rank-ic">${groupIcon(g)}</span><span class="rank-name">${g}</span><span class="rank-stat">${c} series · ${pct}%</span></div>`;
-    }).join('')}</div>`;
+  const names = [...new Set(curEntries.map(w => w.exercise))];
+  const grid = document.getElementById('exerciseComparisonGrid');
+  if(names.length === 0){
+    grid.innerHTML = `<div class="empty-note">Sin entrenamientos en este periodo todavía.</div>`;
+    return;
   }
 
-  const insights = computePeriodInsights(resumenPeriod);
-  renderBriefing('resumenBriefing', insights);
+  const rows = names.map(name => {
+    const cur = bestSetInPeriod(curEntries, name);
+    const prev = bestSetInPeriod(prevEntries, name);
+    const grp = (curEntries.find(w => w.exercise === name) || {}).group || '';
+    return { name, group: grp, cur, prev, ...compareBestSets(cur, prev) };
+  }).sort((a,b) => {
+    const rank = t => t === 'up' ? 0 : (t === 'flat' ? 1 : (t === 'new' ? 2 : 3));
+    return rank(a.trend) - rank(b.trend) || (b.pct||0) - (a.pct||0);
+  });
+
+  grid.innerHTML = `<div class="excmp-grid">${rows.map(r => {
+    const barPct = r.pct === null ? 0 : Math.min(100, Math.abs(r.pct));
+    const trendCls = r.trend;
+    const trendGlyph = r.trend === 'up' ? '▲' : (r.trend === 'down' ? '▼' : '—');
+    const pctText = (r.pct === null || r.trend === 'new') ? '' : `${r.pct > 0 ? '+' : ''}${r.pct}%`;
+    const prevText = r.prev ? `${weightLabel(r.prev.weight)} × ${r.prev.reps}` : '—';
+    const curText = `${weightLabel(r.cur.weight)} × ${r.cur.reps}`;
+    const capLabel = s => s.charAt(0).toUpperCase() + s.slice(1);
+    return `<div class="excmp-card">
+      <div class="ec-head"><span class="ec-icon">${groupIcon(r.group)}</span><span class="ec-name">${r.name}</span></div>
+      ${r.trend === 'new' ? `<div class="ec-new">Primera vez ${curLabel} · <b>${curText}</b></div>` : `
+      <div class="ec-rows">
+        <div class="ec-row"><span class="ec-label">${capLabel(prevLabel)}</span><span class="ec-val">${prevText}</span></div>
+        <div class="ec-row"><span class="ec-label">${capLabel(curLabel)}</span><span class="ec-val ec-val-cur">${curText}</span></div>
+      </div>
+      <div class="ec-bar-row">
+        <div class="ec-bar"><div class="fill ${trendCls}" style="width:${barPct}%"></div></div>
+        <span class="ec-pct ${trendCls}">${trendGlyph} ${pctText}</span>
+      </div>`}
+    </div>`;
+  }).join('')}</div>`;
 }
 
 /* ---------------- PROGRESO / HISTORIAL ---------------- */
@@ -3136,6 +3180,40 @@ function renderNutricion(){
   });
 }
 
+/* ---- Recordatorios de comida (por hora) ---- */
+let notifiedMealsToday = {}; // { 'YYYY-MM-DD': { mealId: true } } — para no repetir la notificación real cada minuto
+function getDueMeals(){
+  const now = new Date();
+  const nowStr = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  const log = todayLog();
+  return dietBase.filter(m => m.time && m.time <= nowStr && !log.checked[m.id]);
+}
+function renderMealReminderBanner(){
+  const due = getDueMeals();
+  const html = due.length === 0 ? '' : due.map(m => `<div class="meal-reminder">
+    <span class="mr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
+    <span class="mr-text">Ya son las <b>${m.time}</b> y no has registrado tu <b>${m.name}</b>.</span>
+  </div>`).join('');
+  const a = document.getElementById('mealReminderBannerInicio');
+  const b = document.getElementById('mealReminderBannerNutricion');
+  if(a) a.innerHTML = html;
+  if(b) b.innerHTML = html;
+}
+function maybeSendRealNotifications(){
+  if(typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  const today = todayISO();
+  if(!notifiedMealsToday[today]) notifiedMealsToday[today] = {};
+  getDueMeals().forEach(m => {
+    if(notifiedMealsToday[today][m.id]) return;
+    try{ new Notification('NOVA — recordatorio', { body: `Ya son las ${m.time} y no has registrado tu ${m.name}.`, icon:'./icon-192.png' }); }catch(e){}
+    notifiedMealsToday[today][m.id] = true;
+  });
+}
+function checkMealReminders(){
+  renderMealReminderBanner();
+  maybeSendRealNotifications();
+}
+
 /* ---- Modal: dieta base + metas ---- */
 function openDietSettings(){
   document.getElementById('goalCalories').value = nutritionGoals.calories;
@@ -3153,6 +3231,7 @@ function renderDietBaseEditor(){
     el.innerHTML = dietBase.map(meal => `<div class="diet-meal-editor-row" data-meal="${meal.id}">
       <div class="dme-head">
         <input type="text" value="${meal.name}" data-rename-meal="${meal.id}">
+        <input type="time" value="${meal.time || ''}" data-time-meal="${meal.id}" title="Hora para el recordatorio (opcional)">
         <button type="button" class="dme-del" data-del-meal="${meal.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg></button>
       </div>
       <div class="dme-items">${meal.items.map(it => `<div class="meal-item-row"><span>${it.name} · ${it.qty}${findFood(it.name)?findFood(it.name).unit:''}</span><button type="button" class="mir-del" data-del-base-item="${meal.id}|${it.name}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>`).join('')}</div>
@@ -3163,6 +3242,12 @@ function renderDietBaseEditor(){
     inp.addEventListener('change', () => {
       const meal = dietBase.find(m => m.id === inp.dataset.renameMeal);
       if(meal){ meal.name = inp.value.trim() || meal.name; scheduleSave(); }
+    });
+  });
+  el.querySelectorAll('[data-time-meal]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const meal = dietBase.find(m => m.id === inp.dataset.timeMeal);
+      if(meal){ meal.time = inp.value || null; scheduleSave(); checkMealReminders(); }
     });
   });
   el.querySelectorAll('[data-del-meal]').forEach(btn => {
@@ -3631,6 +3716,7 @@ function renderAll(){
     renderNutricion();
   });
   document.getElementById('addOtherBtn').addEventListener('click', () => openFoodPicker({ mode:'other' }));
+  document.getElementById('loadSamplePlanBtn').addEventListener('click', loadSampleDietPlan);
 
   document.getElementById('closeFoodPicker').addEventListener('click', closeFoodPicker);
   document.getElementById('foodSearchInput').addEventListener('input', (e) => renderFoodResults(e.target.value));
