@@ -1636,10 +1636,49 @@ function epley1RM(weight, reps){ if(!weight || !reps) return 0; return weight * 
 function kgToLb(kg){ return kg * 2.20462; }
 function lbToKg(lb){ return lb / 2.20462; }
 function dateISO(d){ return d.toISOString().slice(0,10); }
-function weightLabel(kg){
-  const v = currentUnit === 'kg' ? kg : kgToLb(kg);
-  const rounded = Math.round(v*10)/10;
-  return `${rounded}${currentUnit}`;
+function weightLabel(kg, unit){
+  const u = unit || currentUnit;
+  const v = u === 'kg' ? kg : kgToLb(kg);
+  // En libras se redondea a entero: el peso se guarda en kg con 1 decimal y
+  // sin esto 100 lb se vería como 100.1 lb al convertir de regreso.
+  const rounded = u === 'lb' ? Math.round(v) : Math.round(v*10)/10;
+  return `${rounded}${u}`;
+}
+/* ---- Unidad por ejercicio ----
+   Los pesos se guardan siempre en kg por dentro. Cada ejercicio guardado
+   recuerda en qué unidad lo capturaste (kg o lb), y esa unidad se usa al
+   volver a registrarlo y en todas las comparaciones de ese ejercicio. */
+let workingUnit = 'kg'; // unidad de las ruedas del ejercicio que estás capturando ahora
+// Para registros viejos sin unidad guardada: un peso con decimales en kg
+// casi seguro vino de convertir libras (las ruedas de kg solo dan enteros).
+function inferUnitFromSets(sets){
+  const ws = (sets || []).map(x => x.weight).filter(w => w > 0);
+  if(!ws.length) return null;
+  return ws.some(w => Math.abs(w - Math.round(w)) >= 0.06) ? 'lb' : 'kg';
+}
+function entryUnit(e){ return (e && (e.unit || inferUnitFromSets(e.sets))) || currentUnit; }
+function unitForExercise(name){
+  if(!name) return currentUnit;
+  for(let i = builder.exercises.length - 1; i >= 0; i--){
+    if(builder.exercises[i].name === name) return entryUnit(builder.exercises[i]);
+  }
+  const ordered = [...sessions].sort((a,b) => (b.date.localeCompare(a.date)) || String(b.id).localeCompare(String(a.id)));
+  for(const sess of ordered){
+    for(let i = sess.exercises.length - 1; i >= 0; i--){
+      if(sess.exercises[i].name === name) return entryUnit(sess.exercises[i]);
+    }
+  }
+  return currentUnit;
+}
+function syncUnitToggle(){
+  document.querySelectorAll('.unit-toggle button').forEach(b => b.classList.toggle('active', b.dataset.unit === workingUnit));
+}
+function setWorkingUnit(u){
+  if(u === workingUnit){ syncUnitToggle(); return; }
+  const prev = workingUnit;
+  workingUnit = u;
+  syncUnitToggle();
+  rebuildAllSetWheels(prev);
 }
 /* ---------------- FOTOS: IndexedDB (mucho más espacio que localStorage) ---------------- */
 const PHOTO_DB_NAME = 'novaPhotosDB';
@@ -1917,7 +1956,7 @@ function renderBuilder(){
   const list = document.getElementById('builderList');
   list.innerHTML = builder.exercises.map((e,i) => `
     <div class="builder-item" data-edit-i="${i}" title="Toca para editar pesos/reps">
-      <div><div class="bn">${e.name}</div><div class="bs">${e.sets.length} serie${e.sets.length===1?'':'s'} · ${e.sets.map(s=>`${weightLabel(s.weight)}×${s.reps}`).join(', ')}</div></div>
+      <div><div class="bn">${e.name}</div><div class="bs">${e.sets.length} serie${e.sets.length===1?'':'s'} · ${e.sets.map(s=>`${weightLabel(s.weight, entryUnit(e))}×${s.reps}`).join(', ')}</div></div>
       <button type="button" data-i="${i}">×</button>
     </div>`).join('');
   list.querySelectorAll('.builder-item[data-edit-i]').forEach(row => row.addEventListener('click', (e) => {
@@ -2040,6 +2079,7 @@ let editingExerciseIndex = null;
 function selectExercise(name){
   editingExerciseIndex = null;
   selectedExercise = name;
+  setWorkingUnit(unitForExercise(name)); // se abre en la unidad en que lo registraste la última vez
   document.getElementById('selectedName').textContent = name;
   document.getElementById('detailPanel').classList.remove('hidden');
   renderPicker();
@@ -2054,6 +2094,7 @@ function editBuilderExercise(index){
   if(!item) return;
   editingExerciseIndex = index;
   selectedExercise = item.name;
+  setWorkingUnit(entryUnit(item));
   document.getElementById('selectedName').textContent = item.name;
   document.getElementById('notesInput').value = item.notes || '';
   document.getElementById('setsContainer').innerHTML = '';
@@ -2120,32 +2161,32 @@ function saveCustomExercise(){
 }
 
 /* ---------------- SETS (wheels) ---------------- */
-function weightWheelRange(){ return currentUnit === 'kg' ? {min:0, max:250, step:1, decimals:0} : {min:0, max:550, step:2, decimals:0}; }
+function weightWheelRange(){ return workingUnit === 'kg' ? {min:0, max:250, step:1, decimals:0} : {min:0, max:550, step:2, decimals:0}; }
 function addSetRow(initialWeightKg = 20, initialReps = 10){
   const container = document.getElementById('setsContainer');
   const idx = container.children.length + 1;
   const block = document.createElement('div');
   block.className = 'set-block';
-  const initialWeight = currentUnit === 'kg' ? initialWeightKg : Math.round(kgToLb(initialWeightKg));
+  const initialWeight = workingUnit === 'kg' ? initialWeightKg : Math.round(kgToLb(initialWeightKg));
   block.innerHTML = `
     <div class="set-block-head"><span>Serie ${idx}</span><button type="button" class="remove-set">×</button></div>
-    <div class="wheel-pair"><div class="wheel-col"><label>Peso (${currentUnit})</label><div class="wheel weight-wheel"></div></div><div class="wheel-col"><label>Reps</label><div class="wheel reps-wheel"></div></div></div>`;
+    <div class="wheel-pair"><div class="wheel-col"><label>Peso (${workingUnit})</label><div class="wheel weight-wheel"></div></div><div class="wheel-col"><label>Reps</label><div class="wheel reps-wheel"></div></div></div>`;
   container.appendChild(block);
   buildWheel(block.querySelector('.weight-wheel'), {...weightWheelRange(), initial: initialWeight});
   buildWheel(block.querySelector('.reps-wheel'), {min:0, max:50, step:1, decimals:0, initial: initialReps});
   block.querySelector('.remove-set').addEventListener('click', () => { block.remove(); renumberSets(); });
 }
 function renumberSets(){ document.querySelectorAll('#setsContainer .set-block').forEach((b, i) => { b.querySelector('.set-block-head span').textContent = 'Serie ' + (i+1); }); }
-function rebuildAllSetWheels(){
+function rebuildAllSetWheels(prevUnit){
+  prevUnit = prevUnit || (workingUnit === 'kg' ? 'lb' : 'kg');
   document.querySelectorAll('#setsContainer .set-block').forEach(block => {
     const weightEl = block.querySelector('.weight-wheel');
     const repsEl = block.querySelector('.reps-wheel');
     const prevWeight = wheelValue(weightEl);
     const prevReps = wheelValue(repsEl);
-    const prevUnit = currentUnit === 'kg' ? 'lb' : 'kg';
     const weightInKg = prevUnit === 'kg' ? prevWeight : lbToKg(prevWeight);
-    const newInitial = currentUnit === 'kg' ? weightInKg : kgToLb(weightInKg);
-    block.querySelector('label').textContent = `Peso (${currentUnit})`;
+    const newInitial = workingUnit === 'kg' ? weightInKg : kgToLb(weightInKg);
+    block.querySelector('label').textContent = `Peso (${workingUnit})`;
     buildWheel(weightEl, {...weightWheelRange(), initial: Math.round(newInitial)});
     buildWheel(repsEl, {min:0, max:50, step:1, decimals:0, initial: prevReps});
   });
@@ -2157,12 +2198,12 @@ function addExerciseToRoutine(){
     const sets = [...document.querySelectorAll('#setsContainer .set-block')].map(block => {
       const wVal = wheelValue(block.querySelector('.weight-wheel'));
       const rVal = wheelValue(block.querySelector('.reps-wheel'));
-      const weightKg = currentUnit === 'kg' ? wVal : lbToKg(wVal);
+      const weightKg = workingUnit === 'kg' ? wVal : lbToKg(wVal);
       return {weight: Math.round(weightKg*10)/10, reps: rVal};
     }).filter(s => s.weight > 0 || s.reps > 0);
     if(!exercise || sets.length === 0){ alert('Elige un ejercicio y agrega al menos una serie con peso o reps.'); return; }
     const dbEntry = allExercises().find(e => e.name === exercise);
-    const entry = {name: exercise, group: dbEntry ? dbEntry.group : '', sets, notes};
+    const entry = {name: exercise, group: dbEntry ? dbEntry.group : '', sets, notes, unit: workingUnit};
     if(editingExerciseIndex !== null && builder.exercises[editingExerciseIndex]){
       builder.exercises[editingExerciseIndex] = entry;
     } else {
@@ -2252,7 +2293,8 @@ function buildRecordCard(name, sets){
     return { name, value: maxReps, unit: 'reps', meta: 'MÁX', icon: DASH_ICONS.bar };
   }
   const best1RM = Math.max(...sets.map(s => epley1RM(s.weight, s.reps)));
-  return { name, value: weightLabel(best1RM).replace(currentUnit,''), unit: currentUnit, meta: '1RM', icon: DASH_ICONS.plate };
+  const exUnit = unitForExercise(name);
+  return { name, value: weightLabel(best1RM, exUnit).replace(exUnit,''), unit: exUnit, meta: '1RM', icon: DASH_ICONS.plate };
 }
 
 function personalRecordsData(){
@@ -2357,7 +2399,7 @@ function renderInicio(){
         <div class="load-name">${l.name}</div>
         <div class="load-bar-track"><div class="load-bar-fill" style="width:${Math.max(6, Math.round(l.weight/maxLoad*100))}%"></div></div>
       </div>
-      <div class="load-val">${weightLabel(l.weight)}<span class="reps">${l.reps} reps</span></div>
+      <div class="load-val">${weightLabel(l.weight, unitForExercise(l.name))}<span class="reps">${l.reps} reps</span></div>
     </div>
   `).join('') : `<div class="dash-empty">Entrena tu primera sesión para ver aquí el desglose por ejercicio.</div>`;
 
@@ -2821,8 +2863,9 @@ function renderResumen(){
     const trendCls = r.trend;
     const trendGlyph = r.trend === 'up' ? '▲' : (r.trend === 'down' ? '▼' : '—');
     const pctText = (r.pct === null || r.trend === 'new') ? '' : `${r.pct > 0 ? '+' : ''}${r.pct}%`;
-    const prevText = r.prev ? `${weightLabel(r.prev.weight)} × ${r.prev.reps}` : '—';
-    const curText = `${weightLabel(r.cur.weight)} × ${r.cur.reps}`;
+    const exU = unitForExercise(r.name);
+    const prevText = r.prev ? `${weightLabel(r.prev.weight, exU)} × ${r.prev.reps}` : '—';
+    const curText = `${weightLabel(r.cur.weight, exU)} × ${r.cur.reps}`;
     const capLabel = s => s.charAt(0).toUpperCase() + s.slice(1);
     return `<div class="excmp-card">
       <div class="ec-head"><span class="ec-icon">${groupIcon(r.group)}</span><span class="ec-name">${r.name}</span></div>
@@ -2855,6 +2898,7 @@ function renderProgress(){
   el.innerHTML = names.map(name => {
     const points = byExercise[name].sort((a,b) => a.date.localeCompare(b.date));
     const last = points[points.length - 1];
+    const exU = unitForExercise(name);
     const grp = (allExercises().find(x => x.name === name) || {}).group;
     const icHtml = `<span class="pc-icon">${groupIcon(grp || 'Core')}</span>`;
     const countHtml = `<span class="pc-count">${points.length} ses.</span>`;
@@ -2862,7 +2906,7 @@ function renderProgress(){
     if(points.length === 1){
       return `<div class="progress-card">
         <div class="pc-head">${icHtml}<div class="ex-name">${name}</div>${countHtml}</div>
-        <div class="ex-meta">1ª sesión · ${weightLabel(last.weight)} × ${last.reps}</div>
+        <div class="ex-meta">1ª sesión · ${weightLabel(last.weight, exU)} × ${last.reps}</div>
         <div class="empty-note" style="margin-top:6px;">Entrena de nuevo para ver tu tendencia aquí.</div>
       </div>`;
     }
@@ -2882,8 +2926,8 @@ function renderProgress(){
     return `<div class="progress-card">
       <div class="pc-head">${icHtml}<div class="ex-name">${name}</div>${countHtml}</div>
       <div class="pc-best">
-        <span class="pc-best-val">${weightLabel(last.weight)} <span style="color:var(--text-dim); font-weight:600;">× ${last.reps}</span></span>
-        <span class="pc-trend ${trendCls}">${trendGlyph} ${Math.abs(last.weight - first.weight) > 0 ? weightLabel(Math.abs(last.weight - first.weight)) : ''}</span>
+        <span class="pc-best-val">${weightLabel(last.weight, exU)} <span style="color:var(--text-dim); font-weight:600;">× ${last.reps}</span></span>
+        <span class="pc-trend ${trendCls}">${trendGlyph} ${Math.abs(last.weight - first.weight) > 0 ? weightLabel(Math.abs(last.weight - first.weight), exU) : ''}</span>
       </div>
       <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
         <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" class="ic-stopcolorpr" stop-opacity="0.28"/><stop offset="100%" class="ic-stopcolorpr" stop-opacity="0"/></linearGradient></defs>
@@ -3360,7 +3404,7 @@ function selectRoutine(name){
   if(builder.exercises.length === 0){
     const last = sessions.filter(s => s.routine === name).sort((a,b) => b.date.localeCompare(a.date))[0];
     if(last && last.exercises && last.exercises.length){
-      builder.exercises = JSON.parse(JSON.stringify(last.exercises));
+      builder.exercises = JSON.parse(JSON.stringify(last.exercises)).map(e => ({...e, unit: entryUnit(e)}));
       showToast('Rutina cargada', 'Usamos tu ' + name + ' pasado — edita los pesos y reps.', false);
     }
   }
@@ -3398,7 +3442,7 @@ function sessionCardHtml(s, prMap){
     return `
       <div class="session-ex">
         <div class="session-ex-head"><span class="ex">${e.name}${hasPR ? '<span class=\"badge-pr\">PR</span>' : ''}</span><button class="del" data-sid="${s.id}" data-ei="${ei}" title="borrar">×</button></div>
-        <div class="entry-sets">${e.sets.map((set,si2) => `<span class="${flags[si2]?'pr':''}">${weightLabel(set.weight)} × ${set.reps}</span>`).join('')}</div>
+        <div class="entry-sets">${e.sets.map((set,si2) => `<span class="${flags[si2]?'pr':''}">${weightLabel(set.weight, entryUnit(e))} × ${set.reps}</span>`).join('')}</div>
         ${e.notes ? `<div class="entry-notes">${e.notes}</div>` : ''}
       </div>`;
   }).join('');
@@ -3590,9 +3634,11 @@ function renderAll(){
     renderAllExercises();
   });
   document.querySelectorAll('.unit-toggle button').forEach(btn => btn.addEventListener('click', () => {
-    currentUnit = btn.dataset.unit;
-    document.querySelectorAll('.unit-toggle button').forEach(b => b.classList.toggle('active', b===btn));
-    rebuildAllSetWheels();
+    const prevU = workingUnit;
+    workingUnit = btn.dataset.unit;
+    currentUnit = workingUnit; // tu última elección explícita también es el valor por defecto para ejercicios nuevos
+    syncUnitToggle();
+    rebuildAllSetWheels(prevU);
     scheduleSave();
     renderAll();
   }));
@@ -3610,7 +3656,8 @@ function renderAll(){
   }));
 
   loadAppData();
-  document.querySelectorAll('.unit-toggle button').forEach(b => b.classList.toggle('active', b.dataset.unit === currentUnit));
+  workingUnit = currentUnit;
+  syncUnitToggle();
 
   addSetRow();
   renderRoutineChips();
