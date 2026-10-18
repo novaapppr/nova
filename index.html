@@ -1286,9 +1286,9 @@
 
 
     <section class="view" data-view="resumen">
-      <div class="page-head">
-        <div class="eyebrow">NOVA / TRACK</div>
-        <div class="title">Tu evolución</div>
+      <div class="page-head-row">
+        <div><div class="eyebrow">NOVA / TRACK</div><div class="title">Tu evolución</div></div>
+        <button type="button" class="add-exercise-btn" id="exportPdfBtn">Exportar PDF</button>
       </div>
       <div class="card">
         <div class="period-tabs" id="periodTabs">
@@ -3091,6 +3091,537 @@ function openPhotoLightbox(id){
     renderFotos();
   });
 }
+/* ==== PDF-START ====
+   REPORTE PDF — generador propio, sin librerías ni internet.
+   Escribe un PDF real (texto seleccionable/extraíble para que una IA lo lea,
+   gráficas vectoriales para que una persona lo entienda de un vistazo). */
+const PDF_HELV_W = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+const PDF_HELVB_W = [278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584];
+const PDF_CP1252 = {'€':0x80,'‚':0x82,'ƒ':0x83,'„':0x84,'…':0x85,'†':0x86,'‡':0x87,'ˆ':0x88,'‰':0x89,'Š':0x8A,'‹':0x8B,'Œ':0x8C,'Ž':0x8E,'‘':0x91,'’':0x92,'“':0x93,'”':0x94,'•':0x95,'–':0x96,'—':0x97,'˜':0x98,'™':0x99,'š':0x9A,'›':0x9B,'œ':0x9C,'ž':0x9E,'Ÿ':0x9F};
+const PDF_EXTRA_W = {'×':584,'·':278,'•':350,'–':556,'—':1000,'¿':611,'¡':333,'°':400,'±':584,'…':1000,'’':222,'‘':222,'“':333,'”':333,'€':556};
+
+function pdfCharW(ch, font){
+  if(font === 'F3') return 600; // Courier
+  const t = font === 'F2' ? PDF_HELVB_W : PDF_HELV_W;
+  let c = ch.charCodeAt(0);
+  if(c >= 32 && c <= 126) return t[c-32];
+  if(PDF_EXTRA_W[ch] != null) return PDF_EXTRA_W[ch];
+  const n = ch.normalize('NFD');
+  if(n.length > 1){ c = n.charCodeAt(0); if(c >= 32 && c <= 126) return t[c-32]; }
+  return 556;
+}
+function pdfTextW(s, font, size){ let w = 0; for(const ch of String(s)) w += pdfCharW(ch, font); return w * size / 1000; }
+function pdfStr(s){
+  let o = '(';
+  for(const ch of String(s)){
+    const c = ch.codePointAt(0); let b;
+    if(c < 32) b = 32; else if(c < 256) b = c; else if(PDF_CP1252[ch] != null) b = PDF_CP1252[ch]; else b = 63;
+    if(b === 40 || b === 41 || b === 92) o += '\\' + String.fromCharCode(b);
+    else if(b > 126 || b < 32) o += '\\' + ('00' + b.toString(8)).slice(-3);
+    else o += String.fromCharCode(b);
+  }
+  return o + ')';
+}
+function pdfFit(s, maxW, font, size){ // recorta con "…" si no cabe
+  s = String(s);
+  if(pdfTextW(s, font, size) <= maxW) return s;
+  while(s.length > 1 && pdfTextW(s + '…', font, size) > maxW) s = s.slice(0, -1);
+  return s + '…';
+}
+function pdfWrap(s, maxW, font, size){
+  const words = String(s).split(/\s+/).filter(Boolean); const lines = []; let cur = '';
+  words.forEach(w => {
+    const t = cur ? cur + ' ' + w : w;
+    if(pdfTextW(t, font, size) <= maxW) cur = t; else { if(cur) lines.push(cur); cur = w; }
+  });
+  if(cur) lines.push(cur);
+  return lines;
+}
+
+class PdfBuilder {
+  constructor(){ this.W = 612; this.H = 792; this.pages = []; this.ops = null; this.info = {}; }
+  addPage(){ this.ops = []; this.pages.push(this.ops); return this.pages.length - 1; }
+  _n(v){ return +(+v).toFixed(2); }
+  _rgb(c){ return c.map(v => +(v/255).toFixed(3)).join(' '); }
+  _rr(x, y, w, h, r){
+    const n = v => this._n(v), X = x, Y = this.H - y - h, k = 0.5523 * r;
+    return `${n(X+r)} ${n(Y)} m ${n(X+w-r)} ${n(Y)} l ${n(X+w-r+k)} ${n(Y)} ${n(X+w)} ${n(Y+r-k)} ${n(X+w)} ${n(Y+r)} c ` +
+      `${n(X+w)} ${n(Y+h-r)} l ${n(X+w)} ${n(Y+h-r+k)} ${n(X+w-r+k)} ${n(Y+h)} ${n(X+w-r)} ${n(Y+h)} c ` +
+      `${n(X+r)} ${n(Y+h)} l ${n(X+r-k)} ${n(Y+h)} ${n(X)} ${n(Y+h-r+k)} ${n(X)} ${n(Y+h-r)} c ` +
+      `${n(X)} ${n(Y+r)} l ${n(X)} ${n(Y+r-k)} ${n(X+r-k)} ${n(Y)} ${n(X+r)} ${n(Y)} c h`;
+  }
+  rect(x, y, w, h, o = {}){
+    const ops = this.ops; ops.push('q');
+    if(o.fill) ops.push(this._rgb(o.fill) + ' rg');
+    if(o.stroke){ ops.push(this._rgb(o.stroke) + ' RG'); ops.push(this._n(o.lw || 0.6) + ' w'); }
+    ops.push(o.r ? this._rr(x, y, w, h, o.r) : `${this._n(x)} ${this._n(this.H - y - h)} ${this._n(w)} ${this._n(h)} re`);
+    ops.push(o.fill && o.stroke ? 'B' : (o.fill ? 'f' : 'S'));
+    ops.push('Q');
+  }
+  line(x1, y1, x2, y2, color, lw = 0.6, dash){
+    const ops = this.ops; ops.push('q', this._rgb(color) + ' RG', this._n(lw) + ' w');
+    if(dash) ops.push(`[${dash.join(' ')}] 0 d`);
+    ops.push(`${this._n(x1)} ${this._n(this.H - y1)} m ${this._n(x2)} ${this._n(this.H - y2)} l S`, 'Q');
+  }
+  poly(pts, color, lw = 1.5){
+    if(pts.length < 2) return;
+    const ops = this.ops; ops.push('q', this._rgb(color) + ' RG', this._n(lw) + ' w', '1 J 1 j');
+    ops.push(pts.map((p, i) => `${this._n(p[0])} ${this._n(this.H - p[1])} ${i ? 'l' : 'm'}`).join(' ') + ' S', 'Q');
+  }
+  circle(cx, cy, r, o = {}){
+    const n = v => this._n(v), k = 0.5523 * r, X = cx, Y = this.H - cy, ops = this.ops;
+    ops.push('q');
+    if(o.fill) ops.push(this._rgb(o.fill) + ' rg');
+    if(o.stroke){ ops.push(this._rgb(o.stroke) + ' RG', this._n(o.lw || 0.8) + ' w'); }
+    ops.push(`${n(X+r)} ${n(Y)} m ${n(X+r)} ${n(Y+k)} ${n(X+k)} ${n(Y+r)} ${n(X)} ${n(Y+r)} c ${n(X-k)} ${n(Y+r)} ${n(X-r)} ${n(Y+k)} ${n(X-r)} ${n(Y)} c ${n(X-r)} ${n(Y-k)} ${n(X-k)} ${n(Y-r)} ${n(X)} ${n(Y-r)} c ${n(X+k)} ${n(Y-r)} ${n(X+r)} ${n(Y-k)} ${n(X+r)} ${n(Y)} c h`);
+    ops.push(o.fill && o.stroke ? 'B' : (o.fill ? 'f' : 'S'), 'Q');
+  }
+  // y = línea base (medida desde arriba). align: 'l' | 'c' | 'r'
+  text(s, x, y, size, font, color, align = 'l'){
+    s = String(s); if(!s) return;
+    const w = pdfTextW(s, font, size);
+    const px = align === 'r' ? x - w : (align === 'c' ? x - w/2 : x);
+    this.ops.push(`BT /${font} ${size} Tf ${this._rgb(color)} rg ${this._n(px)} ${this._n(this.H - y)} Td ${pdfStr(s)} Tj ET`);
+  }
+  build(){
+    const total = this.pages.length, objs = [];
+    const add = s => { objs.push(s); return objs.length; };
+    add('<< /Type /Catalog /Pages 2 0 R /Lang (es-MX) /ViewerPreferences << /DisplayDocTitle true >> >>');
+    add('PAGES_PLACEHOLDER');
+    ['Helvetica', 'Helvetica-Bold', 'Courier'].forEach(f => add(`<< /Type /Font /Subtype /Type1 /BaseFont /${f} /Encoding /WinAnsiEncoding >>`));
+    const d = new Date(), p2 = v => ('0' + v).slice(-2);
+    const cd = `D:${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`;
+    add(`<< /Title ${pdfStr(this.info.title || 'Reporte')} /Author ${pdfStr(this.info.author || 'NOVA')} /Subject ${pdfStr(this.info.subject || '')} /Keywords ${pdfStr(this.info.keywords || '')} /Creator (NOVA) /Producer (NOVA) /CreationDate (${cd}) >>`);
+    const pageObjNums = [];
+    this.pages.forEach(ops => {
+      const body = ops.join('\n');
+      const contentNum = add(`<< /Length ${body.length} >>\nstream\n${body}\nendstream`);
+      const pageNum = add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${this.W} ${this.H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents ${contentNum} 0 R >>`);
+      pageObjNums.push(pageNum);
+    });
+    objs[1] = `<< /Type /Pages /Kids [${pageObjNums.map(n => n + ' 0 R').join(' ')}] /Count ${total} >>`;
+    let out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'; const offs = [];
+    objs.forEach((o, i) => { offs.push(out.length); out += `${i+1} 0 obj\n${o}\nendobj\n`; });
+    const xref = out.length;
+    out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offs.map(o => ('0000000000' + o).slice(-10) + ' 00000 n \n').join('');
+    out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R /Info 6 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    const bytes = new Uint8Array(out.length);
+    for(let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
+    return bytes;
+  }
+}
+
+/* ---------- Datos del reporte ---------- */
+function pdfLocalISO(d){ const p = v => ('0' + v).slice(-2); return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()); }
+function pdfMonday(dateStr){ const d = new Date(dateStr + 'T12:00:00'); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; }
+function pdfNum(v, dec){ return String(+(+v).toFixed(dec == null ? 1 : dec)); }
+function pdfPct(p){ if(p == null || !isFinite(p)) return 'n/d'; const a = Math.abs(p); return (p > 0 ? '+' : (p < 0 ? '-' : '')) + (a >= 10 ? Math.round(a) : pdfNum(a, 1)) + '%'; }
+function pdfWUnit(kg, unit, dec){ // peso (guardado en kg) → texto en la unidad del ejercicio
+  if(unit === 'lb') return Math.round(kg * 2.20462) + ' lb';
+  return pdfNum(kg, dec == null ? 1 : dec) + ' kg';
+}
+function pdfCompact(v){ if(v >= 10000) return Math.round(v/1000) + 'k'; if(v >= 1000) return pdfNum(v/1000, 1) + 'k'; return String(Math.round(v)); }
+
+function pdfBuildReportData(sessionsArr, now){
+  const sess = [...sessionsArr].sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)));
+  const groups = {}, setRows = [];
+  const sessionSet = new Set();
+  sess.forEach(s => {
+    (s.exercises || []).forEach(e => {
+      const sets = (e.sets || []).filter(x => x && (x.weight > 0 || x.reps > 0)).map(x => ({ weight: +x.weight || 0, reps: +x.reps || 0 }));
+      if(!sets.length) return;
+      const gName = e.group || 'Sin grupo', unit = entryUnit(e);
+      const g = groups[gName] || (groups[gName] = { name: gName, exercises: {}, sessionIds: new Set() });
+      const ex = g.exercises[e.name] || (g.exercises[e.name] = { name: e.name, group: gName, unit, records: [] });
+      let rec = ex.records.find(r => r.sessionId === s.id);
+      if(!rec){ rec = { sessionId: s.id, date: s.date, routine: s.routine || '', unit, sets: [] }; ex.records.push(rec); }
+      rec.sets.push(...sets);
+      ex.unit = unit; // la más reciente manda
+      g.sessionIds.add(s.id); sessionSet.add(s.id);
+    });
+  });
+  if(!sessionSet.size) return null;
+  const weeklyN = 12, curMon = pdfMonday(pdfLocalISO(now));
+  const weekKeys = [];
+  for(let i = weeklyN - 1; i >= 0; i--){ const d = new Date(curMon); d.setDate(d.getDate() - 7*i); weekKeys.push(pdfLocalISO(d)); }
+  const weekIdx = {}; weekKeys.forEach((k, i) => weekIdx[k] = i);
+  const total = { sessions: 0, sets: 0, reps: 0, volume: 0, exercises: 0, weekVol: weekKeys.map(() => 0), weekSessions: weekKeys.map(() => 0), firstDate: null, lastDate: null };
+  const sessWeek = {};
+  sess.forEach(s => {
+    if(!sessionSet.has(s.id)) return;
+    total.firstDate = total.firstDate || s.date; total.lastDate = s.date;
+    const k = pdfLocalISO(pdfMonday(s.date)); if(weekIdx[k] != null && !sessWeek[s.id]){ total.weekSessions[weekIdx[k]]++; sessWeek[s.id] = 1; }
+  });
+  total.sessions = sessionSet.size;
+  const groupList = [];
+  Object.keys(groups).forEach(gName => {
+    const g = groups[gName];
+    g.weekVol = weekKeys.map(() => 0); g.sets = 0; g.reps = 0; g.volume = 0;
+    g.trendCount = { mejorando: 0, estable: 0, bajando: 0, 'sin datos': 0 };
+    g.exList = Object.keys(g.exercises).map(n => g.exercises[n]);
+    g.exList.forEach(ex => {
+      ex.records.sort((a, b) => a.date.localeCompare(b.date) || String(a.sessionId).localeCompare(String(b.sessionId)));
+      ex.records.forEach(r => {
+        r.setCount = r.sets.length;
+        r.reps = r.sets.reduce((n, x) => n + x.reps, 0);
+        r.volume = r.sets.reduce((n, x) => n + x.weight * x.reps, 0);
+        r.best = r.sets.reduce((b, x) => (!b || x.weight > b.weight || (x.weight === b.weight && x.reps > b.reps)) ? x : b, null);
+        r.e1rm = Math.max(0, ...r.sets.map(x => epley1RM(x.weight, x.reps)));
+        r.maxReps = Math.max(...r.sets.map(x => x.reps));
+        const k = pdfLocalISO(pdfMonday(r.date)); if(weekIdx[k] != null){ g.weekVol[weekIdx[k]] += r.volume; total.weekVol[weekIdx[k]] += r.volume; }
+        g.sets += r.setCount; g.reps += r.reps; g.volume += r.volume;
+        total.sets += r.setCount; total.reps += r.reps; total.volume += r.volume;
+      });
+      ex.metricType = ex.records.some(r => r.e1rm > 0) ? 'e1rm' : 'reps';
+      ex.metrics = ex.records.map(r => ex.metricType === 'e1rm' ? r.e1rm : r.maxReps);
+      const n = ex.metrics.length, first = ex.metrics[0], last = ex.metrics[n-1];
+      ex.n = n; ex.first = ex.records[0]; ex.last = ex.records[n-1];
+      ex.changePct = (n >= 2 && first > 0) ? (last - first) / first * 100 : null;
+      let prIdx = 0; ex.metrics.forEach((m, i) => { if(m >= ex.metrics[prIdx]) prIdx = i; });
+      ex.pr = ex.records[prIdx]; ex.prMetric = ex.metrics[prIdx];
+      if(n < 2) ex.trend = 'sin datos';
+      else {
+        const prev = ex.metrics.slice(Math.max(0, n - 4), n - 1), base = prev.reduce((a, b) => a + b, 0) / prev.length;
+        const d = base > 0 ? (last - base) / base : 0;
+        ex.trend = d > 0.02 ? 'mejorando' : (d < -0.02 ? 'bajando' : 'estable');
+      }
+      ex.stalled = n >= 4 && Math.max(...ex.metrics.slice(-3)) <= Math.max(...ex.metrics.slice(0, -3));
+      g.trendCount[ex.trend]++;
+    });
+    g.exList.sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+    g.exCount = g.exList.length; total.exercises += g.exCount;
+    g.sessions = g.sessionIds.size;
+    const ch = g.exList.map(e => e.changePct).filter(v => v != null);
+    g.avgChange = ch.length ? ch.reduce((a, b) => a + b, 0) / ch.length : null;
+    groupList.push(g);
+  });
+  groupList.sort((a, b) => b.sets - a.sets);
+  const allEx = []; groupList.forEach(g => g.exList.forEach(e => allEx.push(e)));
+  const first = new Date(total.firstDate + 'T12:00:00'), last = new Date(total.lastDate + 'T12:00:00');
+  total.weeksSpan = Math.max(1, Math.round((last - first) / 604800000) + 1);
+  total.perWeek = total.sessions / total.weeksSpan;
+  return { groups: groupList, allEx, total, weekKeys, sess };
+}
+
+/* ---------- Dibujo del reporte ---------- */
+function buildProgressReportPdf(opts){
+  const now = opts.now || new Date();
+  const user = (opts.userName || 'Atleta').trim() || 'Atleta';
+  const data = pdfBuildReportData(opts.sessions, now);
+  if(!data) return null;
+  const T = data.total, P = new PdfBuilder();
+  const C = { violet:[125,92,255], violetDark:[84,58,214], dark:[13,15,20], text:[34,36,44], gray:[110,113,125], light:[243,242,248], line:[221,222,230], red:[205,60,52], white:[255,255,255], soft:[236,231,255] };
+  const TREND = {
+    'mejorando': { fill:[236,231,255], text:[84,58,214], label:'Mejorando' },
+    'estable': { fill:[235,236,240], text:[90,93,105], label:'Estable' },
+    'bajando': { fill:[253,232,230], text:[190,48,40], label:'Bajando' },
+    'sin datos': { fill:[235,236,240], text:[110,113,125], label:'Sin datos suficientes' }
+  };
+  const L = 36, R = 576, CW = R - L, BOTTOM = 748;
+  const todayStr = pdfLocalISO(now);
+  let y = 0, ctxTitle = '';
+
+  function newPage(title){
+    P.addPage(); ctxTitle = title || ctxTitle;
+    P.text('NOVA · Reporte de progreso', L, 26, 8, 'F2', C.violetDark);
+    P.text(ctxTitle, R, 26, 8, 'F1', C.gray, 'r');
+    P.line(L, 32, R, 32, C.line, 0.5);
+    y = 50;
+  }
+  function ensure(h, title){ if(y + h > BOTTOM) newPage(title); }
+  function section(title, sub){
+    ensure(34);
+    P.rect(L, y, 3, 14, { fill: C.violet });
+    P.text(title, L + 9, y + 11, 12.5, 'F2', C.dark);
+    y += 20;
+    if(sub){ pdfWrap(sub, CW, 'F1', 8.5).forEach(l => { P.text(l, L, y + 7, 8.5, 'F1', C.gray); y += 11; }); y += 3; }
+  }
+  function pill(txt, x, yTop, tr, align){
+    const w = pdfTextW(txt, 'F2', 7.5) + 12, px = align === 'r' ? x - w : x;
+    P.rect(px, yTop, w, 13, { fill: tr.fill, r: 6.5 });
+    P.text(txt, px + w/2, yTop + 9.3, 7.5, 'F2', tr.text, 'c');
+    return w;
+  }
+  function barChart(x, top, w, h, vals, labels, color, hiLast){
+    const n = vals.length, max = Math.max(1, ...vals), slot = w / n, bw = slot * 0.62, plotH = h - 14;
+    P.line(x, top + plotH, x + w, top + plotH, C.line, 0.6);
+    vals.forEach((v, i) => {
+      const bh = v / max * (plotH - 10), bx = x + i*slot + (slot - bw)/2;
+      if(v > 0){
+        P.rect(bx, top + plotH - bh, bw, bh, { fill: (hiLast && i === n - 1) ? C.violetDark : color, r: 1.5 });
+        P.text(pdfCompact(v), bx + bw/2, top + plotH - bh - 3, 6.5, 'F1', C.gray, 'c');
+      }
+      if(i % 2 === (n - 1) % 2 || n <= 8) P.text(labels[i], bx + bw/2, top + plotH + 9, 6.5, 'F1', C.gray, 'c');
+    });
+  }
+  function lineChart(x, top, w, h, vals, xl, fmt){
+    const padL = 38, padR = 14, padT = 12, padB = 12, pw = w - padL - padR, ph = h - padT - padB;
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    if(hi - lo < 1e-9){ lo = lo * 0.9; hi = hi * 1.1 + 1; }
+    const pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
+    P.rect(x, top, w, h, { fill: [250, 249, 253], r: 4 });
+    [0, 0.5, 1].forEach(f => P.line(x + padL, top + padT + ph * f, x + w - padR, top + padT + ph * f, C.line, 0.4, [2, 2]));
+    P.text(fmt(hi), x + padL - 4, top + padT + 3, 6.5, 'F1', C.gray, 'r');
+    P.text(fmt(lo), x + padL - 4, top + padT + ph + 3, 6.5, 'F1', C.gray, 'r');
+    const pts = vals.map((v, i) => [x + padL + (vals.length === 1 ? pw/2 : i * pw / (vals.length - 1)), top + padT + ph - (v - lo) / (hi - lo) * ph]);
+    P.poly(pts, C.violet, 1.6);
+    pts.forEach((p, i) => P.circle(p[0], p[1], 2.4, { fill: C.white, stroke: C.violetDark, lw: 1 }));
+    const f = pts[0], l = pts[pts.length - 1];
+    P.text(fmt(vals[0]), f[0], f[1] - 5, 7, 'F2', C.text, 'c');
+    if(vals.length > 1) P.text(fmt(vals[vals.length - 1]), l[0], l[1] - 5, 7, 'F2', C.violetDark, 'c');
+    P.text(xl[0], x + padL, top + h - 3, 6.5, 'F1', C.gray, 'l');
+    if(vals.length > 1) P.text(xl[xl.length - 1], x + w - padR, top + h - 3, 6.5, 'F1', C.gray, 'r');
+  }
+  function shortDate(d){ const p = d.split('-'); return p[2] + '/' + p[1] + '/' + p[0].slice(2); }
+  const weekLabels = data.weekKeys.map(k => { const p = k.split('-'); return +p[2] + '/' + +p[1]; });
+  const metricName = ex => ex.metricType === 'e1rm' ? '1RM est.' : 'reps máx.';
+  const fmtMetric = (ex, v) => ex.metricType === 'e1rm' ? pdfWUnit(v, ex.unit, 1) : (Math.round(v) + ' reps');
+  const setTxt = (ex, s) => (ex.unit === 'lb' ? Math.round(s.weight * 2.20462) : pdfNum(s.weight, 1)) + '×' + s.reps;
+
+  /* ===== Página 1: resumen general ===== */
+  P.info = { title: 'NOVA - Reporte de progreso de entrenamiento (' + todayStr + ')', author: user, subject: 'Resumen de entrenamiento por grupo muscular y ejercicio, con series, repeticiones y pesos hasta ' + todayStr, keywords: 'NOVA, entrenamiento, progreso, grupos musculares, series, repeticiones, peso, 1RM' };
+  P.addPage(); ctxTitle = 'Resumen general';
+  P.rect(0, 0, 612, 104, { fill: C.dark });
+  P.rect(0, 0, 8, 104, { fill: C.violet });
+  P.text('NOVA', L, 50, 28, 'F2', C.white);
+  P.text('Reporte de progreso de entrenamiento', L, 70, 11, 'F1', [200, 195, 235]);
+  P.text('TRAIN. TRACK. EVOLVE.', L, 88, 7.5, 'F2', C.violet);
+  P.text(user, R, 46, 14, 'F2', C.white, 'r');
+  P.text('Datos: ' + T.firstDate + '  a  ' + T.lastDate, R, 62, 8.5, 'F1', [200, 195, 235], 'r');
+  P.text('Generado el ' + todayStr, R, 75, 8.5, 'F1', [200, 195, 235], 'r');
+  y = 124;
+  const kpis = [
+    [String(T.sessions), 'Sesiones registradas'], [String(T.sets), 'Series totales'], [T.reps.toLocaleString('es-MX'), 'Repeticiones totales'],
+    [Math.round(T.volume).toLocaleString('es-MX') + ' kg', 'Volumen total (peso × reps)'], [String(T.exercises), 'Ejercicios distintos'], [pdfNum(T.perWeek, 1), 'Sesiones por semana (promedio)']
+  ];
+  const kw = (CW - 20) / 3;
+  kpis.forEach((k, i) => {
+    const cx = L + (i % 3) * (kw + 10), cy = y + Math.floor(i / 3) * 62;
+    P.rect(cx, cy, kw, 52, { fill: C.light, r: 6 });
+    P.text(k[0], cx + 12, cy + 25, 17, 'F2', C.dark);
+    P.text(k[1], cx + 12, cy + 41, 7.5, 'F1', C.gray);
+  });
+  y += 132;
+  section('Cómo leer este reporte');
+  const guide = [
+    'Pesos: se guardan en kg; cada ejercicio se muestra en la unidad en que lo registras (kg o lb). Los totales y volúmenes usan kg.',
+    '1RM est. (una repetición máxima estimada) = peso × (1 + reps ÷ 30), fórmula de Epley. Sirve para comparar series con distinto peso y repeticiones. En ejercicios con peso corporal se usan las repeticiones máximas.',
+    'Mejor serie de una sesión: la de mayor peso; si empatan, la de más repeticiones. Volumen = suma de peso × repeticiones.',
+    'Cambio: variación del 1RM est. entre la primera y la última sesión del ejercicio. Tendencia: la última sesión contra el promedio de las 3 sesiones previas (Mejorando > +2%, Bajando < -2%, Estable entre ambos).',
+    'Al final hay apéndices en formato CSV (texto plano) con todos los grupos, ejercicios y series, pensados para análisis automático.'
+  ];
+  guide.forEach(g => { const ls = pdfWrap(g, CW - 12, 'F1', 8.2); ensure(ls.length * 10.5 + 4); P.circle(L + 3, y + 5, 1.4, { fill: C.violet }); ls.forEach(l => { P.text(l, L + 12, y + 8, 8.2, 'F1', C.text); y += 10.5; }); y += 3; });
+  y += 6;
+  section('Volumen semanal', 'Volumen total por semana (peso × repeticiones, en kg). Últimas 12 semanas; la semana actual va resaltada.');
+  ensure(112);
+  barChart(L, y, CW, 96, T.weekVol, weekLabels, C.violet, true);
+  y += 112;
+  section('Sesiones por semana');
+  ensure(80);
+  barChart(L, y, CW, 62, T.weekSessions, weekLabels, [160, 140, 245], true);
+  y += 80;
+
+  /* ===== Panorama por grupo ===== */
+  newPage('Panorama por grupo muscular');
+  section('Panorama por grupo muscular', 'Cada barra muestra qué porcentaje de tus series totales corresponde al grupo. A la derecha, el cambio promedio de 1RM est. de sus ejercicios (primera vs. última sesión).');
+  const maxSets = Math.max(1, ...data.groups.map(g => g.sets));
+  data.groups.forEach(g => {
+    ensure(22);
+    const share = g.sets / Math.max(1, T.sets);
+    P.text(g.name, L, y + 11, 9.5, 'F2', C.text);
+    P.rect(L + 100, y + 2, 270, 12, { fill: C.light, r: 3 });
+    P.rect(L + 100, y + 2, Math.max(3, 270 * g.sets / maxSets), 12, { fill: C.violet, r: 3 });
+    P.text(Math.round(share * 100) + '% · ' + g.sets + ' series', L + 378, y + 11, 8.2, 'F1', C.text);
+    const ac = g.avgChange, col = ac == null ? C.gray : (ac > 0.5 ? C.violetDark : (ac < -0.5 ? C.red : C.gray));
+    P.text(pdfPct(ac), R, y + 11, 9.5, 'F2', col, 'r');
+    y += 22;
+  });
+  y += 8;
+  section('Tabla por grupo muscular');
+  const colsFixed = [['Grupo', 108, 'l'], ['Ses.', 30, 'r'], ['Series', 40, 'r'], ['Reps', 44, 'r'], ['Volumen kg', 70, 'r'], ['Ejerc.', 36, 'r'], ['Cambio 1RM', 66, 'r'], ['Mej. / Est. / Baj.', 146, 'r']];
+  function tableRow(vals, o){
+    let x = L; const h = o.h || 15;
+    if(o.bg) P.rect(L, y, CW, h, { fill: o.bg });
+    colsFixed.forEach((c, i) => {
+      const xx = c[2] === 'r' ? x + c[1] - 6 : x + 6;
+      P.text(pdfFit(vals[i], c[1] - 10, o.font, o.size), xx, y + h - 4.5, o.size, o.font, o.colors ? o.colors[i] : C.text, c[2]);
+      x += c[1];
+    });
+    y += h;
+  }
+  tableRow(colsFixed.map(c => c[0]), { bg: C.dark, font: 'F2', size: 7.5, colors: colsFixed.map(() => C.white), h: 16 });
+  data.groups.forEach((g, i) => {
+    ensure(16);
+    tableRow([g.name, g.sessions, g.sets, g.reps, Math.round(g.volume).toLocaleString('es-MX'), g.exCount, pdfPct(g.avgChange), g.trendCount.mejorando + ' / ' + g.trendCount.estable + ' / ' + g.trendCount.bajando], { bg: i % 2 ? C.light : null, font: 'F1', size: 8, h: 15 });
+  });
+  y += 12;
+  const withChange = data.allEx.filter(e => e.changePct != null);
+  const top = [...withChange].sort((a, b) => b.changePct - a.changePct).slice(0, 5).filter(e => e.changePct > 0);
+  section('Mayores avances', 'Ejercicios con mayor aumento de 1RM est. entre su primera y su última sesión.');
+  if(!top.length){ ensure(14); P.text('Aún no hay ejercicios con al menos 2 sesiones y avance positivo.', L, y + 8, 8.5, 'F1', C.gray); y += 16; }
+  top.forEach(e => {
+    ensure(15);
+    P.text(pdfFit(e.name, 190, 'F2', 8.8), L, y + 9, 8.8, 'F2', C.text);
+    P.text(e.group, L + 196, y + 9, 8, 'F1', C.gray);
+    P.text(fmtMetric(e, e.metrics[0]) + '  a  ' + fmtMetric(e, e.metrics[e.n - 1]), L + 290, y + 9, 8, 'F1', C.text);
+    P.text(pdfPct(e.changePct), R, y + 9, 9, 'F2', C.violetDark, 'r');
+    y += 15;
+  });
+  y += 10;
+  const watch = data.allEx.filter(e => e.trend === 'bajando' || e.stalled).sort((a, b) => (a.changePct == null ? 0 : a.changePct) - (b.changePct == null ? 0 : b.changePct)).slice(0, 8);
+  section('Para vigilar', 'Ejercicios que bajaron frente a sus sesiones previas o que llevan al menos 3 sesiones sin superar su mejor marca.');
+  if(!watch.length){ ensure(14); P.text('Nada que vigilar por ahora: ningún ejercicio está bajando ni estancado.', L, y + 8, 8.5, 'F1', C.gray); y += 16; }
+  watch.forEach(e => {
+    ensure(15);
+    P.text(pdfFit(e.name, 190, 'F2', 8.8), L, y + 9, 8.8, 'F2', C.text);
+    P.text(e.group, L + 196, y + 9, 8, 'F1', C.gray);
+    P.text(e.trend === 'bajando' ? 'Bajó frente a sus sesiones previas' : 'Sin nuevo récord en las últimas 3 sesiones', L + 290, y + 9, 8, 'F1', C.text);
+    P.text(pdfPct(e.changePct), R, y + 9, 9, 'F2', e.trend === 'bajando' ? C.red : C.gray, 'r');
+    y += 15;
+  });
+
+  /* ===== Una sección por grupo muscular ===== */
+  data.groups.forEach(g => {
+    newPage('Grupo: ' + g.name);
+    P.rect(L, y - 2, CW, 40, { fill: C.dark, r: 6 });
+    P.rect(L, y - 2, 6, 40, { fill: C.violet, r: 3 });
+    P.text(g.name, L + 18, y + 19, 17, 'F2', C.white);
+    P.text(g.sessions + ' sesiones · ' + g.sets + ' series · ' + g.reps.toLocaleString('es-MX') + ' reps · ' + Math.round(g.volume).toLocaleString('es-MX') + ' kg de volumen · ' + g.exCount + ' ejercicio' + (g.exCount === 1 ? '' : 's'), L + 18, y + 32, 8, 'F1', [200, 195, 235]);
+    P.text('Cambio 1RM prom.', R - 10, y + 14, 7, 'F1', [200, 195, 235], 'r');
+    P.text(pdfPct(g.avgChange), R - 10, y + 30, 14, 'F2', C.white, 'r');
+    y += 52;
+    ensure(130);
+    P.text('Volumen semanal del grupo (kg)', L, y + 8, 9, 'F2', C.text);
+    barChart(L, y + 14, 262, 78, g.weekVol, weekLabels, C.violet, true);
+    P.text('Avance por ejercicio (cambio 1RM est.)', L + 290, y + 8, 9, 'F2', C.text);
+    const exShow = g.exList.slice(0, 8), maxAbs = Math.max(10, ...exShow.map(e => Math.abs(e.changePct || 0)));
+    exShow.forEach((e, i) => {
+      const ry = y + 18 + i * 11.5, bx = L + 290 + 98, bw = 100, mid = bx + bw / 2;
+      P.text(pdfFit(e.name, 94, 'F1', 7), L + 290, ry + 7, 7, 'F1', C.text);
+      P.line(mid, ry + 1, mid, ry + 9, C.line, 0.6);
+      if(e.changePct != null){
+        const w = Math.min(bw / 2, Math.abs(e.changePct) / maxAbs * bw / 2);
+        P.rect(e.changePct >= 0 ? mid : mid - w, ry + 2, Math.max(1, w), 6, { fill: e.changePct >= 0 ? C.violet : C.red });
+      }
+      P.text(pdfPct(e.changePct), R, ry + 7, 7, 'F2', C.text, 'r');
+    });
+    if(g.exList.length > 8) P.text('+ ' + (g.exList.length - 8) + ' ejercicios más (ver detalle abajo)', L + 290, y + 18 + 8 * 11.5 + 6, 6.8, 'F1', C.gray);
+    y += 112;
+
+    g.exList.forEach(ex => {
+      const rowsShown = Math.min(6, ex.records.length);
+      const blockH = 18 + 12 + 40 + 8 + (ex.n > 1 ? 70 : 20) + 8 + (rowsShown + 1) * 12.5 + 12 + 14;
+      ensure(blockH, 'Grupo: ' + g.name);
+      const tr = TREND[ex.trend];
+      P.line(L, y, R, y, C.line, 0.6);
+      y += 6;
+      P.text(pdfFit(ex.name, 330, 'F2', 12), L, y + 11, 12, 'F2', C.dark);
+      let px = R; px -= pill(tr.label, px, y + 1, tr, 'r') + 6;
+      pill('unidad: ' + ex.unit, px, y + 1, { fill: C.light, text: C.gray }, 'r');
+      y += 18;
+      P.text(ex.n + ' sesión' + (ex.n === 1 ? '' : 'es') + ' registrada' + (ex.n === 1 ? '' : 's') + ' · primera: ' + ex.first.date + ' · última: ' + ex.last.date, L, y + 7, 8, 'F1', C.gray);
+      y += 12;
+      const bw = (CW - 18) / 4;
+      const mk = (title, rec, metricVal) => ({ title, l1: pdfWUnit(rec.best.weight, ex.unit, 1) + ' × ' + rec.best.reps, l2: metricName(ex) + ': ' + fmtMetric(ex, metricVal) });
+      const boxes = [
+        mk('Primera sesión', ex.first, ex.metrics[0]),
+        mk('Última sesión', ex.last, ex.metrics[ex.n - 1]),
+        mk('Mejor marca · ' + ex.pr.date, ex.pr, ex.prMetric),
+        { title: 'Cambio ' + metricName(ex), l1: pdfPct(ex.changePct), l2: ex.n > 1 ? 'primera a última sesión' : 'se necesitan 2+ sesiones', big: true }
+      ];
+      boxes.forEach((b, i) => {
+        const bx = L + i * (bw + 6);
+        P.rect(bx, y, bw, 38, { fill: C.light, r: 5 });
+        P.text(pdfFit(b.title, bw - 12, 'F1', 6.8), bx + 7, y + 10, 6.8, 'F1', C.gray);
+        if(b.big){ P.text(b.l1, bx + 7, y + 27, 13, 'F2', ex.changePct == null ? C.gray : (ex.changePct < 0 ? C.red : C.violetDark)); P.text(b.l2, bx + 7, y + 35, 6.3, 'F1', C.gray); }
+        else { P.text(pdfFit(b.l1, bw - 12, 'F2', 8), bx + 7, y + 22, 8, 'F2', C.text); P.text(pdfFit(b.l2, bw - 12, 'F1', 7.2), bx + 7, y + 32, 7.2, 'F1', C.gray); }
+      });
+      y += 46;
+      if(ex.n > 1){
+        P.text(metricName(ex) + ' por sesión (' + (ex.metricType === 'e1rm' ? ex.unit : 'reps') + ')', L, y + 7, 7, 'F1', C.gray);
+        const conv = v => ex.metricType === 'e1rm' ? (ex.unit === 'lb' ? v * 2.20462 : v) : v;
+        lineChart(L, y + 10, CW, 56, ex.metrics.map(conv), ex.records.map(r => shortDate(r.date)), v => pdfNum(v, ex.unit === 'lb' || ex.metricType === 'reps' ? 0 : 1));
+        y += 70;
+      } else { P.text('Solo hay 1 sesión de este ejercicio: aún no hay tendencia que graficar.', L, y + 8, 8, 'F1', C.gray); y += 20; }
+      const tcols = [['Fecha', 52, 'l'], ['Rutina', 62, 'l'], ['Series (' + ex.unit + ' × reps)', 214, 'l'], ['Mejor serie', 66, 'l'], [metricName(ex), 64, 'r'], ['Vol. kg', 82, 'r']];
+      const trow = (vals, o) => { let x = L; if(o.bg) P.rect(L, y, CW, 12.5, { fill: o.bg }); tcols.forEach((c, i) => { P.text(pdfFit(vals[i], c[1] - 8, o.font, 7.2), c[2] === 'r' ? x + c[1] - 4 : x + 4, y + 9, 7.2, o.font, o.col || C.text, c[2]); x += c[1]; }); y += 12.5; };
+      trow(tcols.map(c => c[0]), { bg: C.dark, font: 'F2', col: C.white });
+      ex.records.slice(-rowsShown).forEach((r, i) => trow([r.date, r.routine, r.sets.map(s => setTxt(ex, s)).join('  '), setTxt(ex, r.best), ex.metricType === 'e1rm' ? pdfWUnit(r.e1rm, ex.unit, 1) : r.maxReps + ' reps', Math.round(r.volume)], { bg: i % 2 ? C.light : null, font: 'F1' }));
+      if(ex.records.length > rowsShown){ y += 2; P.text('Se muestran las últimas ' + rowsShown + ' de ' + ex.records.length + ' sesiones. Historial completo en el apéndice.', L, y + 7, 6.8, 'F1', C.gray); y += 9; }
+      y += 12;
+    });
+  });
+
+  /* ===== Apéndices (CSV, texto plano para análisis automático) ===== */
+  const csvCell = v => { v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const csvLine = arr => arr.map(csvCell).join(',');
+  let appendixCount = 0;
+  function appendix(title, desc, header, rows){
+    if(appendixCount++ === 0) newPage('Apéndice'); else { y += 16; ensure(90, 'Apéndice (continuación)'); }
+    section(title);
+    pdfWrap(desc, CW, 'F1', 8).forEach(l => { P.text(l, L, y + 7, 8, 'F1', C.gray); y += 10.5; });
+    y += 4;
+    // el tamaño de letra se ajusta para que la fila más larga quepa completa en el ancho de la página
+    const maxLen = Math.max(header.length, ...rows.map(r => r.length));
+    const fs = Math.max(5, Math.min(6.9, Math.floor(CW / (maxLen * 0.6) * 10) / 10)), lh = fs * 1.22;
+    const put = line => { ensure(lh + 1, 'Apéndice (continuación)'); P.text(line, L, y + fs * 0.95, fs, 'F3', C.text); y += lh; };
+    put(header);
+    rows.forEach(put);
+  }
+  appendix('Apéndice A — Resumen por grupo muscular (CSV)', 'Una fila por grupo. volumen_kg = suma de peso(kg) × reps. cambio_1rm_prom_pct = promedio del cambio % de 1RM estimado de sus ejercicios (primera vs última sesión). Separador: coma.',
+    'grupo,sesiones,series,reps,volumen_kg,ejercicios,cambio_1rm_prom_pct,ej_mejorando,ej_estables,ej_bajando,ej_sin_datos',
+    data.groups.map(g => csvLine([g.name, g.sessions, g.sets, g.reps, Math.round(g.volume), g.exCount, g.avgChange == null ? '' : pdfNum(g.avgChange, 1), g.trendCount.mejorando, g.trendCount.estable, g.trendCount.bajando, g.trendCount['sin datos']])));
+  appendix('Apéndice B — Resumen por ejercicio (CSV)', 'Una fila por ejercicio. metrica = e1rm (1RM estimado, en kg) o reps (repeticiones máximas, para ejercicios con peso corporal). Los valores de peso están en kg; unidad_usuario indica en qué unidad registra el usuario ese ejercicio.',
+    'grupo,ejercicio,unidad_usuario,sesiones,primera_fecha,ultima_fecha,metrica,primera_valor,ultima_valor,mejor_valor,mejor_fecha,cambio_pct,tendencia,estancado',
+    data.allEx.map(e => csvLine([e.group, e.name, e.unit, e.n, e.first.date, e.last.date, e.metricType, pdfNum(e.metrics[0], 1), pdfNum(e.metrics[e.n - 1], 1), pdfNum(e.prMetric, 1), e.pr.date, e.changePct == null ? '' : pdfNum(e.changePct, 1), e.trend, e.stalled ? 'si' : 'no'])));
+  const setLines = [];
+  data.sess.forEach(s => (s.exercises || []).forEach(e => {
+    const unit = entryUnit(e), sets = (e.sets || []).filter(x => x && (x.weight > 0 || x.reps > 0));
+    sets.forEach((x, i) => setLines.push(csvLine([s.date, s.routine || '', e.group || 'Sin grupo', e.name, i + 1, pdfNum(+x.weight || 0, 1), unit === 'lb' ? Math.round((+x.weight || 0) * 2.20462) : pdfNum(+x.weight || 0, 1), unit, +x.reps || 0, pdfNum(epley1RM(+x.weight || 0, +x.reps || 0), 1)])));
+  }));
+  appendix('Apéndice C — Todas las series (CSV)', 'Una fila por serie realizada, en orden cronológico. peso_kg = peso en kilogramos; peso_usuario y unidad = peso en la unidad en que el usuario registró el ejercicio; e1rm_kg = 1RM estimado de esa serie (0 si no aplica).',
+    'fecha,rutina,grupo,ejercicio,serie,peso_kg,peso_usuario,unidad,reps,e1rm_kg', setLines);
+
+  /* ===== Pie de página ===== */
+  const total = P.pages.length;
+  P.pages.forEach((ops, i) => {
+    P.ops = ops;
+    P.line(L, 762, R, 762, C.line, 0.5);
+    P.text('NOVA · Reporte de progreso · ' + user + ' · Generado el ' + todayStr, L, 774, 7, 'F1', C.gray);
+    P.text('Página ' + (i + 1) + ' de ' + total, R, 774, 7, 'F1', C.gray, 'r');
+  });
+  return P.build();
+}
+/* ==== PDF-END ==== */
+
+/* ---- Exportar reporte PDF ---- */
+async function exportProgressPDF(){
+  const hasData = sessions.some(s => (s.exercises || []).some(e => (e.sets || []).some(x => x && (x.weight > 0 || x.reps > 0))));
+  if(!hasData){ showToast('Aún no hay datos', 'Registra al menos un entrenamiento para generar tu reporte.', false); return; }
+  let bytes;
+  try{ bytes = buildProgressReportPdf({ sessions, userName, now: new Date() }); }
+  catch(err){ console.error(err); alert('No se pudo generar el PDF: ' + (err && err.message ? err.message : err)); return; }
+  if(!bytes) return;
+  const fname = 'NOVA-reporte-' + pdfLocalISO(new Date()) + '.pdf';
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // En celular se abre la hoja de compartir (Guardar en Archivos, WhatsApp, etc.); en computadora se descarga.
+  if(isMobile && navigator.canShare && window.File){
+    try{
+      const file = new File([blob], fname, { type: 'application/pdf' });
+      if(navigator.canShare({ files: [file] })){
+        await navigator.share({ files: [file], title: 'Reporte de progreso NOVA' });
+        return;
+      }
+    }catch(e){ if(e && e.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  showToast('Reporte generado', fname + ' se descargó.', false);
+}
+
 /* ==================== NUTRICIÓN ==================== */
 function allFoods(){ return FOOD_DB.concat(customFoods); }
 function findFood(name){ return allFoods().find(f => f.name === name); }
@@ -3744,6 +4275,7 @@ function renderAll(){
 
   /* ---- Nutrición ---- */
   document.getElementById('openDietSettingsBtn').addEventListener('click', openDietSettings);
+  document.getElementById('exportPdfBtn').addEventListener('click', exportProgressPDF);
   document.getElementById('closeDietSettings').addEventListener('click', () => document.getElementById('dietSettingsModal').classList.add('hidden'));
   document.getElementById('saveGoalsBtn').addEventListener('click', () => {
     nutritionGoals = {
